@@ -23,9 +23,13 @@ neon:
 	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.neon.c && ./$(EXEC)
 	@echo
 
+preload:
+	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.preload.c && ./$(EXEC)
+	@echo
+
 asm:
 	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.asm.s && ./$(EXEC)
 	@echo
 
-all: _ver default novect vect neon asm
+all: _ver default novect vect neon preload asm
 	

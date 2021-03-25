@@ -51,6 +51,6 @@ opSourceOver_premul(uint8_t* restrict Rrgba,
         Rx2lo = vmlal_u8(Rx2lo, Dx4, Sax4);
 
         uint8x8_t Rx4 = vqrshrn_n_u16(vrsraq_n_u16(Rx2lo, Rx2lo, 8), 8);
-        vst1_lane_u32((uint32_t *)&Rrgba[i], Rx4, 0);
+        vst1_lane_u32((uint32_t *)&Rrgba[i], (uint32x2_t)Rx4, 0);
     }
 }
