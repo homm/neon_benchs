@@ -37,10 +37,15 @@ opSourceOver_premul(uint8_t* restrict Rrgba,
     }
 
     for (; i < len*4; i += 4) {
-        uint8_t Sa = 255 - Srgba[i + 3];
-        Rrgba[i + 0] = DIV255(Srgba[i + 0] * 255 + Drgba[i + 0] * Sa);
-        Rrgba[i + 1] = DIV255(Srgba[i + 1] * 255 + Drgba[i + 1] * Sa);
-        Rrgba[i + 2] = DIV255(Srgba[i + 2] * 255 + Drgba[i + 2] * Sa);
-        Rrgba[i + 3] = DIV255(Srgba[i + 3] * 255 + Drgba[i + 3] * Sa);
+        uint8x8_t Sx4 = (uint8x8_t)vld1_dup_u32((uint32_t *)&Srgba[i]);
+        uint8x8_t Dx4 = (uint8x8_t)vld1_dup_u32((uint32_t *)&Drgba[i]);
+
+        uint8x8_t Sax4 = vsub_u8(vdup_n_u8(255), vdup_lane_u8(Sx4, 3));
+
+        uint16x8_t Rx2lo = vmull_u8(Sx4, vdup_n_u8(255));
+        Rx2lo = vmlal_u8(Rx2lo, Dx4, Sax4);
+
+        uint8x8_t Rx4 = vqrshrn_n_u16(vrsraq_n_u16(Rx2lo, Rx2lo, 8), 8);
+        vst1_lane_u32((uint32_t *)&Rrgba[i], Rx4, 0);
     }
 }
