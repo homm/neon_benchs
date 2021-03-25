@@ -32,7 +32,7 @@ alloc_premul(size_t len)
 int
 main(int argc, char *argv[])
 {
-    size_t len = 1003;
+    size_t len = 1000;
     uint8_t *Srgba = alloc_premul(len);
     uint8_t *Drgba = alloc_premul(len);
     uint8_t *Rrgba = malloc(len * 4);
