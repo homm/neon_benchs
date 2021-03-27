@@ -40,6 +40,14 @@ avx:
 	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.avx.c -mavx2 && ./$(EXEC)
 	@echo
 
+sse_2:  # Alternative implementation which is not correct
+	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.sse_2.c -msse4 && ./$(EXEC)
+	@echo
+
+avx_2:  # Alternative implementation which is not correct
+	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.avx_2.c -mavx2 && ./$(EXEC)
+	@echo
+
 agnostic: _ver default novect autovect
 
 arm: _ver default novect autovect neon neon_preload neon_asm
