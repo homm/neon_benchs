@@ -1,3 +1,4 @@
+.DEFAULT_GOAL = agnostic
 CFLAGS ?= -Wall -O2
 EXEC ?= run.64
 MAIN ?= main.c
@@ -15,7 +16,7 @@ novect:
 	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.native.c -fno-tree-vectorize && ./$(EXEC)
 	@echo
 
-vect:
+autovect:
 	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.native.c -ftree-vectorize && ./$(EXEC)
 	@echo
 
@@ -23,13 +24,14 @@ neon:
 	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.neon.c && ./$(EXEC)
 	@echo
 
-preload:
-	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.preload.c && ./$(EXEC)
+neon_preload:
+	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.neon_preload.c && ./$(EXEC)
 	@echo
 
-asm:
-	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.asm.s && ./$(EXEC)
+neon_asm:
+	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.neon_asm.s && ./$(EXEC)
 	@echo
 
-all: _ver default novect vect neon preload asm
-	
+agnostic: _ver default novect autovect
+
+arm: _ver default novect autovect neon neon_preload neon_asm

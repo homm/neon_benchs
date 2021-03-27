@@ -1,6 +1,5 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <arm_neon.h>
 
 #define SHIFTFORDIV255(a)\
     ((((a) >> 8) + a) >> 8)
