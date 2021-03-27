@@ -23,24 +23,29 @@ opSourceOver_premul(
 ```
 
 
-## Run
+## Runing
 
-```bash 
+```sh
 $ make
 ```
 Run default benchmarks, which include not vectorized and auto vectorized variants.
 
-```bash
+```sh
 $ make arm
 ```
 Run benchmarks for ARM target, which include NEON optimized versions.
 
-```bash
+```sh
+$ make x86
+```
+Run benchmarks for x86 target, which include SSE and AVX optimized versions.
+
+```sh
 $ CC='clang' make arm
 ```
 Use different C compiler. Default compiler is `cc`.
 
-```bash
+```sh
 $ CFLAGS='-O3' make arm
 ```
 Use different compiler parameters. Default is `-Wall -O2`.

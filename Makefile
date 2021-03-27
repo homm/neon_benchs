@@ -32,6 +32,16 @@ neon_asm:
 	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.neon_asm.s && ./$(EXEC)
 	@echo
 
+sse:
+	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.sse.c -msse4 && ./$(EXEC)
+	@echo
+
+avx:
+	$(CC) $(CFLAGS) -o $(EXEC) $(MAIN) impl.avx.c -mavx2 && ./$(EXEC)
+	@echo
+
 agnostic: _ver default novect autovect
 
 arm: _ver default novect autovect neon neon_preload neon_asm
+
+x86: _ver default novect autovect sse avx

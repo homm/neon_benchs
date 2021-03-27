@@ -2,12 +2,6 @@
 #include <stddef.h>
 #include <arm_neon.h>
 
-#define SHIFTFORDIV255(a)\
-    ((((a) >> 8) + a) >> 8)
-
-#define DIV255(a)\
-    SHIFTFORDIV255(a + 0x80)
-
 
 extern void
 opSourceOver_premul(uint8_t* restrict Rrgba,
