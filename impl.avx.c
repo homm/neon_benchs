@@ -42,8 +42,9 @@ opSourceOver_premul(uint8_t* restrict Rrgba,
         Rx2lo = _mm256_srli_epi16(_mm256_add_epi16(_mm256_srli_epi16(Rx2lo, 8), Rx2lo), 8);
         Rx2hi = _mm256_add_epi16(Rx2hi, _mm256_set1_epi16(0x80));
         Rx2hi = _mm256_srli_epi16(_mm256_add_epi16(_mm256_srli_epi16(Rx2hi, 8), Rx2hi), 8);
+        __m256i Rx4 =  _mm256_packus_epi16(Rx2lo, Rx2hi);
 
-        _mm256_storeu_si256((__m256i*) &Rrgba[i], _mm256_packus_epi16(Rx2lo, Rx2hi));
+        _mm256_storeu_si256((__m256i*) &Rrgba[i], Rx4);
     }
 
     for (; i < len*4; i += 4) {

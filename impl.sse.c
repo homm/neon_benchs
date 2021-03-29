@@ -15,6 +15,7 @@ opSourceOver_premul(uint8_t* restrict Rrgba,
     for (; i < len*4 - 12; i += 16) {
         __m128i Sx4 = _mm_loadu_si128((__m128i*) &Srgba[i]);
         __m128i Dx4 = _mm_loadu_si128((__m128i*) &Drgba[i]);
+
         __m128i Sax4 = _mm_sub_epi8(
             _mm_set1_epi8((char) 255),
             _mm_shuffle_epi8(Sx4, _mm_set_epi8(
@@ -35,8 +36,9 @@ opSourceOver_premul(uint8_t* restrict Rrgba,
         Rx2lo = _mm_srli_epi16(_mm_add_epi16(_mm_srli_epi16(Rx2lo, 8), Rx2lo), 8);
         Rx2hi = _mm_add_epi16(Rx2hi, _mm_set1_epi16(0x80));
         Rx2hi = _mm_srli_epi16(_mm_add_epi16(_mm_srli_epi16(Rx2hi, 8), Rx2hi), 8);
+        __m128i Rx4 = _mm_packus_epi16(Rx2lo, Rx2hi);
 
-        _mm_storeu_si128((__m128i*) &Rrgba[i], _mm_packus_epi16(Rx2lo, Rx2hi));
+        _mm_storeu_si128((__m128i*) &Rrgba[i], Rx4);
     }
 
     for (; i < len*4; i += 4) {
