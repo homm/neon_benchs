@@ -6,6 +6,18 @@
 
 #include "lodepng.h"
 
+typedef struct {
+    uint8_t r, g, b, a;
+} pixel32;
+
+typedef struct {
+    uint16_t r, g, b, a;
+} pixel64;
+
+typedef struct {
+    uint32_t r, g, b, a;
+} pixel128;
+
 
 struct image32 {
     uint32_t xsize;
@@ -27,5 +39,8 @@ png32_decode(struct image32* image, const char* filename);
 
 unsigned
 png32_encode(struct image32* image, const char* filename);
+
+uint32_t
+all_bits_mask(uint32_t x);
 
 #endif

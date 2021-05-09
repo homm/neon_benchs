@@ -33,6 +33,20 @@ main(int argc, char *argv[])
     printf("%p %dx%d\n", Rimage.data, Rimage.xsize, Rimage.ysize);
     printf("%p %dx%d\n", REFimage.data, REFimage.xsize, REFimage.ysize);
 
+
+    for (size_t j = 0; j < 4; j ++) {
+        struct timeval tval_before, tval_after, tval_result;
+        gettimeofday(&tval_before, NULL);
+        for (size_t i = 0; i < 10; i ++) {
+            opTriBoxBlur_premul_ref(&Rimage, &Simage, 5);
+        }
+        gettimeofday(&tval_after, NULL);
+        timersub(&tval_after, &tval_before, &tval_result);
+
+        printf("Time elapsed: %ld.%06ld s\n",
+            (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+    }
+
     png32_encode(&REFimage, "./_out.png");
     image32_free(&Simage);
     image32_free(&Rimage);

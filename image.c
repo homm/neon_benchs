@@ -42,3 +42,13 @@ unsigned
 png32_encode(struct image32* image, const char* filename) {
     return lodepng_encode32_file(filename, image->data, image->xsize, image->ysize);
 }
+
+uint32_t
+all_bits_mask(uint32_t x) {
+    x |= (x >> 1);
+    x |= (x >> 2);
+    x |= (x >> 4);
+    x |= (x >> 8);
+    x |= (x >> 16);
+    return x;
+}
