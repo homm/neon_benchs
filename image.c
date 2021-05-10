@@ -2,7 +2,7 @@
 
 
 void
-image32_alloc(struct image32* image, uint32_t xsize, uint32_t ysize) {
+image32_alloc(image32* image, uint32_t xsize, uint32_t ysize) {
     image->xsize = 0;
     image->ysize = 0;
     image->data = calloc(xsize * ysize, 4);
@@ -17,7 +17,7 @@ image32_alloc(struct image32* image, uint32_t xsize, uint32_t ysize) {
 }
 
 void
-image32_free(struct image32* image) {
+image32_free(image32* image) {
     free(image->data);
     image->data = NULL;
     image->xsize = 0;
@@ -25,7 +25,7 @@ image32_free(struct image32* image) {
 }
 
 unsigned
-png32_decode(struct image32* image, const char* filename) {
+png32_decode(image32* image, const char* filename) {
     unsigned err;
     err = lodepng_decode32_file(&image->data, &image->xsize, &image->ysize, filename);
     if (err) {
@@ -39,7 +39,7 @@ png32_decode(struct image32* image, const char* filename) {
 }
 
 unsigned
-png32_encode(struct image32* image, const char* filename) {
+png32_encode(image32* image, const char* filename) {
     return lodepng_encode32_file(filename, image->data, image->xsize, image->ysize);
 }
 
