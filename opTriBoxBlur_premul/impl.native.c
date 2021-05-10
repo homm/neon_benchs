@@ -39,7 +39,7 @@ opTriBoxBlur_premul_horz(
     assert(r < (1 << 15));
     assert(Simg->xsize >= r3);
 
-    for (int y = 0; y < Simg->ysize; y += 1) {
+    for (size_t y = 0; y < Simg->ysize; y += 1) {
         pixel32* sdata = (pixel32*) Simg->data + Simg->xsize * y;
         pixel32* rdata = (pixel32*) Rimg->data + y;
         
@@ -47,7 +47,7 @@ opTriBoxBlur_premul_horz(
         X1.g = sdata[0].g * (r + 1);
         X1.b = sdata[0].b * (r + 1);
         X1.a = sdata[0].a * (r + 1);
-        for (int x = 1; x <= r; x += 1) {
+        for (size_t x = 1; x <= r; x += 1) {
             X1.r += sdata[x].r;
             X1.g += sdata[x].g;
             X1.b += sdata[x].b;
@@ -62,7 +62,7 @@ opTriBoxBlur_premul_horz(
         X2.g = b[0].g * (r + 1);
         X2.b = b[0].b * (r + 1);
         X2.a = b[0].a * (r + 1);
-        for (int x = 1; x <= r; x += 1) {
+        for (size_t x = 1; x <= r; x += 1) {
             X1.r += sdata[x + r].r - sdata[0].r;
             X1.g += sdata[x + r].g - sdata[0].g;
             X1.b += sdata[x + r].b - sdata[0].b;
@@ -85,7 +85,7 @@ opTriBoxBlur_premul_horz(
         X3.g = c[0].g * (r + 2);
         X3.b = c[0].b * (r + 2);
         X3.a = c[0].a * (r + 2);
-        for (int x = 1; x < r; x += 1) {
+        for (size_t x = 1; x < r; x += 1) {
             X1.r += sdata[x + r2].r - sdata[x - 1].r;
             X1.g += sdata[x + r2].g - sdata[x - 1].g;
             X1.b += sdata[x + r2].b - sdata[x - 1].b;
@@ -109,10 +109,10 @@ opTriBoxBlur_premul_horz(
         }
 
         b[-1 & r_mask] = b[0];
-        for (int x = 0; x <= r; x += 1) {
+        for (size_t x = 0; x <= r; x += 1) {
             c[(x - r - 1) & r_mask] = c[0];
         }
-        for (int x = 0; x < Simg->xsize - r3; x += 1) {
+        for (size_t x = 0; x < Simg->xsize - r3; x += 1) {
             pixel32 last_b, last_c;
             X1.r += sdata[x + r3].r - sdata[x + r - 1].r;
             X1.g += sdata[x + r3].g - sdata[x + r - 1].g;
@@ -144,7 +144,7 @@ opTriBoxBlur_premul_horz(
             rdata += Rimg->xsize;
         }
 
-        for (int x = Simg->xsize - r3; x < Simg->xsize - r2; x += 1) {
+        for (size_t x = Simg->xsize - r3; x < Simg->xsize - r2; x += 1) {
             pixel32 last_b, last_c;
             X1.r += sdata[lastx].r - sdata[x + r - 1].r;
             X1.g += sdata[lastx].g - sdata[x + r - 1].g;
@@ -176,7 +176,7 @@ opTriBoxBlur_premul_horz(
             rdata += Rimg->xsize;
         }
 
-        for (int x = Simg->xsize - r2; x < Simg->xsize - r; x += 1) {
+        for (size_t x = Simg->xsize - r2; x < Simg->xsize - r; x += 1) {
             pixel32 last_c;
             X2.r += b[lastx & r_mask].r - b[(x - 1) & r_mask].r;
             X2.g += b[lastx & r_mask].g - b[(x - 1) & r_mask].g;
@@ -200,7 +200,7 @@ opTriBoxBlur_premul_horz(
             rdata += Rimg->xsize;
         }
 
-        for (int x = Simg->xsize - r; x < Simg->xsize; x += 1) {
+        for (size_t x = Simg->xsize - r; x < Simg->xsize; x += 1) {
             X3.r += c[lastx & r_mask].r - c[(x - r - 1) & r_mask].r;
             X3.g += c[lastx & r_mask].g - c[(x - r - 1) & r_mask].g;
             X3.b += c[lastx & r_mask].b - c[(x - r - 1) & r_mask].b;

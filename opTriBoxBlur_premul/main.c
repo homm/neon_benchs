@@ -36,7 +36,6 @@ main(int argc, char *argv[])
     printf("%p %dx%d\n", Rimage.data, Rimage.xsize, Rimage.ysize);
     printf("%p %dx%d\n", REFimage.data, REFimage.xsize, REFimage.ysize);
 
-
     for (size_t j = 0; j < 4; j ++) {
         struct timeval tval_before, tval_after, tval_result;
         gettimeofday(&tval_before, NULL);
@@ -48,6 +47,18 @@ main(int argc, char *argv[])
 
         printf("Time elapsed: %ld.%06ld s\n",
             (long int)tval_result.tv_sec, (long int)tval_result.tv_usec);
+
+        for (size_t y = 0; y < Rimage.ysize; y++) {
+            uint32_t* rdata = (uint32_t*) Rimage.data + Rimage.xsize * y;
+            uint32_t* refdata = (uint32_t*) REFimage.data + REFimage.xsize * y;
+            for (size_t x = 0; x < Rimage.xsize; x++) {
+                if (rdata[x] != refdata[x]) {
+                    printf("Err on pos %zu,%zu: %#08x %#08x\n", x, y, rdata[x], refdata[x]);
+                    goto end_check;
+                }
+            }
+        }
+        end_check: ;
     }
 
     png32_encode(&REFimage, "./_out.png");
