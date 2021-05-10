@@ -44,10 +44,10 @@ opTriBoxBlur_premul_horz(
             X1.a += sdata[x].a;
         }
 
-        b[0].r = (uint16_t) ((X1.r * X1div) >> 16);
-        b[0].g = (uint16_t) ((X1.g * X1div) >> 16);
-        b[0].b = (uint16_t) ((X1.b * X1div) >> 16);
-        b[0].a = (uint16_t) ((X1.a * X1div) >> 16);
+        b[0].r = (uint16_t) ((X1.r * X1div + (1 << 15)) >> 16);
+        b[0].g = (uint16_t) ((X1.g * X1div + (1 << 15)) >> 16);
+        b[0].b = (uint16_t) ((X1.b * X1div + (1 << 15)) >> 16);
+        b[0].a = (uint16_t) ((X1.a * X1div + (1 << 15)) >> 16);
         X2.r = b[0].r * (r + 1);
         X2.g = b[0].g * (r + 1);
         X2.b = b[0].b * (r + 1);
@@ -57,20 +57,20 @@ opTriBoxBlur_premul_horz(
             X1.g += sdata[x + r].g - sdata[0].g;
             X1.b += sdata[x + r].b - sdata[0].b;
             X1.a += sdata[x + r].a - sdata[0].a;
-            b[x].r = (uint16_t) ((X1.r * X1div) >> 16);
-            b[x].g = (uint16_t) ((X1.g * X1div) >> 16);
-            b[x].b = (uint16_t) ((X1.b * X1div) >> 16);
-            b[x].a = (uint16_t) ((X1.a * X1div) >> 16);
+            b[x].r = (uint16_t) ((X1.r * X1div + (1 << 15)) >> 16);
+            b[x].g = (uint16_t) ((X1.g * X1div + (1 << 15)) >> 16);
+            b[x].b = (uint16_t) ((X1.b * X1div + (1 << 15)) >> 16);
+            b[x].a = (uint16_t) ((X1.a * X1div + (1 << 15)) >> 16);
             X2.r += b[x].r;
             X2.g += b[x].g;
             X2.b += b[x].b;
             X2.a += b[x].a;
         }
 
-        c[0].r = (uint16_t) ((X2.r * X2div) >> 16);
-        c[0].g = (uint16_t) ((X2.g * X2div) >> 16);
-        c[0].b = (uint16_t) ((X2.b * X2div) >> 16);
-        c[0].a = (uint16_t) ((X2.a * X2div) >> 16);
+        c[0].r = (uint16_t) ((X2.r * X2div + (1 << 15)) >> 16);
+        c[0].g = (uint16_t) ((X2.g * X2div + (1 << 15)) >> 16);
+        c[0].b = (uint16_t) ((X2.b * X2div + (1 << 15)) >> 16);
+        c[0].a = (uint16_t) ((X2.a * X2div + (1 << 15)) >> 16);
         X3.r = c[0].r * (r + 2);
         X3.g = c[0].g * (r + 2);
         X3.b = c[0].b * (r + 2);
@@ -80,18 +80,18 @@ opTriBoxBlur_premul_horz(
             X1.g += sdata[x + r2].g - sdata[x - 1].g;
             X1.b += sdata[x + r2].b - sdata[x - 1].b;
             X1.a += sdata[x + r2].a - sdata[x - 1].a;
-            b[x + r].r = (uint16_t) ((X1.r * X1div) >> 16);
-            b[x + r].g = (uint16_t) ((X1.g * X1div) >> 16);
-            b[x + r].b = (uint16_t) ((X1.b * X1div) >> 16);
-            b[x + r].a = (uint16_t) ((X1.a * X1div) >> 16);
+            b[x + r].r = (uint16_t) ((X1.r * X1div + (1 << 15)) >> 16);
+            b[x + r].g = (uint16_t) ((X1.g * X1div + (1 << 15)) >> 16);
+            b[x + r].b = (uint16_t) ((X1.b * X1div + (1 << 15)) >> 16);
+            b[x + r].a = (uint16_t) ((X1.a * X1div + (1 << 15)) >> 16);
             X2.r += b[x + r].r - b[0].r;
             X2.g += b[x + r].g - b[0].g;
             X2.b += b[x + r].b - b[0].b;
             X2.a += b[x + r].a - b[0].a;
-            c[x].r = (uint16_t) ((X2.r * X2div) >> 16);
-            c[x].g = (uint16_t) ((X2.g * X2div) >> 16);
-            c[x].b = (uint16_t) ((X2.b * X2div) >> 16);
-            c[x].a = (uint16_t) ((X2.a * X2div) >> 16);
+            c[x].r = (uint16_t) ((X2.r * X2div + (1 << 15)) >> 16);
+            c[x].g = (uint16_t) ((X2.g * X2div + (1 << 15)) >> 16);
+            c[x].b = (uint16_t) ((X2.b * X2div + (1 << 15)) >> 16);
+            c[x].a = (uint16_t) ((X2.a * X2div + (1 << 15)) >> 16);
             X3.r += c[x].r;
             X3.g += c[x].g;
             X3.b += c[x].b;
@@ -108,28 +108,28 @@ opTriBoxBlur_premul_horz(
             X1.g += sdata[x + r3].g - sdata[x + r - 1].g;
             X1.b += sdata[x + r3].b - sdata[x + r - 1].b;
             X1.a += sdata[x + r3].a - sdata[x + r - 1].a;
-            last_b.r = b[(x + r2) & r_mask].r = (uint16_t) ((X1.r * X1div) >> 16);
-            last_b.g = b[(x + r2) & r_mask].g = (uint16_t) ((X1.g * X1div) >> 16);
-            last_b.b = b[(x + r2) & r_mask].b = (uint16_t) ((X1.b * X1div) >> 16);
-            last_b.a = b[(x + r2) & r_mask].a = (uint16_t) ((X1.a * X1div) >> 16);
+            last_b.r = b[(x + r2) & r_mask].r = (uint16_t) ((X1.r * X1div + (1 << 15)) >> 16);
+            last_b.g = b[(x + r2) & r_mask].g = (uint16_t) ((X1.g * X1div + (1 << 15)) >> 16);
+            last_b.b = b[(x + r2) & r_mask].b = (uint16_t) ((X1.b * X1div + (1 << 15)) >> 16);
+            last_b.a = b[(x + r2) & r_mask].a = (uint16_t) ((X1.a * X1div + (1 << 15)) >> 16);
             X2.r += last_b.r - b[(x - 1) & r_mask].r;
             X2.g += last_b.g - b[(x - 1) & r_mask].g;
             X2.b += last_b.b - b[(x - 1) & r_mask].b;
             X2.a += last_b.a - b[(x - 1) & r_mask].a;
-            last_c.r = c[(x + r) & r_mask].r = (uint16_t) ((X2.r * X2div) >> 16);
-            last_c.g = c[(x + r) & r_mask].g = (uint16_t) ((X2.g * X2div) >> 16);
-            last_c.b = c[(x + r) & r_mask].b = (uint16_t) ((X2.b * X2div) >> 16);
-            last_c.a = c[(x + r) & r_mask].a = (uint16_t) ((X2.a * X2div) >> 16);
+            last_c.r = c[(x + r) & r_mask].r = (uint16_t) ((X2.r * X2div + (1 << 15)) >> 16);
+            last_c.g = c[(x + r) & r_mask].g = (uint16_t) ((X2.g * X2div + (1 << 15)) >> 16);
+            last_c.b = c[(x + r) & r_mask].b = (uint16_t) ((X2.b * X2div + (1 << 15)) >> 16);
+            last_c.a = c[(x + r) & r_mask].a = (uint16_t) ((X2.a * X2div + (1 << 15)) >> 16);
             X3.r += last_c.r - c[(x - r - 1) & r_mask].r;
             X3.g += last_c.g - c[(x - r - 1) & r_mask].g;
             X3.b += last_c.b - c[(x - r - 1) & r_mask].b;
             X3.a += last_c.a - c[(x - r - 1) & r_mask].a;
 
             *rdata = (pixel32){
-                (uint8_t) ((X3.r * X3div) >> 24),
-                (uint8_t) ((X3.g * X3div) >> 24),
-                (uint8_t) ((X3.b * X3div) >> 24),
-                (uint8_t) ((X3.a * X3div) >> 24)
+                (uint8_t) ((X3.r * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.g * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.b * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.a * X3div + (1 << 23)) >> 24)
             };
             rdata += Rimg->xsize;
         }
@@ -140,28 +140,28 @@ opTriBoxBlur_premul_horz(
             X1.g += sdata[lastx].g - sdata[x + r - 1].g;
             X1.b += sdata[lastx].b - sdata[x + r - 1].b;
             X1.a += sdata[lastx].a - sdata[x + r - 1].a;
-            last_b.r = b[(x + r2) & r_mask].r = (uint16_t) ((X1.r * X1div) >> 16);
-            last_b.g = b[(x + r2) & r_mask].g = (uint16_t) ((X1.g * X1div) >> 16);
-            last_b.b = b[(x + r2) & r_mask].b = (uint16_t) ((X1.b * X1div) >> 16);
-            last_b.a = b[(x + r2) & r_mask].a = (uint16_t) ((X1.a * X1div) >> 16);
+            last_b.r = b[(x + r2) & r_mask].r = (uint16_t) ((X1.r * X1div + (1 << 15)) >> 16);
+            last_b.g = b[(x + r2) & r_mask].g = (uint16_t) ((X1.g * X1div + (1 << 15)) >> 16);
+            last_b.b = b[(x + r2) & r_mask].b = (uint16_t) ((X1.b * X1div + (1 << 15)) >> 16);
+            last_b.a = b[(x + r2) & r_mask].a = (uint16_t) ((X1.a * X1div + (1 << 15)) >> 16);
             X2.r += last_b.r - b[(x - 1) & r_mask].r;
             X2.g += last_b.g - b[(x - 1) & r_mask].g;
             X2.b += last_b.b - b[(x - 1) & r_mask].b;
             X2.a += last_b.a - b[(x - 1) & r_mask].a;
-            last_c.r = c[(x + r) & r_mask].r = (uint16_t) ((X2.r * X2div) >> 16);
-            last_c.g = c[(x + r) & r_mask].g = (uint16_t) ((X2.g * X2div) >> 16);
-            last_c.b = c[(x + r) & r_mask].b = (uint16_t) ((X2.b * X2div) >> 16);
-            last_c.a = c[(x + r) & r_mask].a = (uint16_t) ((X2.a * X2div) >> 16);
+            last_c.r = c[(x + r) & r_mask].r = (uint16_t) ((X2.r * X2div + (1 << 15)) >> 16);
+            last_c.g = c[(x + r) & r_mask].g = (uint16_t) ((X2.g * X2div + (1 << 15)) >> 16);
+            last_c.b = c[(x + r) & r_mask].b = (uint16_t) ((X2.b * X2div + (1 << 15)) >> 16);
+            last_c.a = c[(x + r) & r_mask].a = (uint16_t) ((X2.a * X2div + (1 << 15)) >> 16);
             X3.r += last_c.r - c[(x - r - 1) & r_mask].r;
             X3.g += last_c.g - c[(x - r - 1) & r_mask].g;
             X3.b += last_c.b - c[(x - r - 1) & r_mask].b;
             X3.a += last_c.a - c[(x - r - 1) & r_mask].a;
 
             *rdata = (pixel32){
-                (uint8_t) ((X3.r * X3div) >> 24),
-                (uint8_t) ((X3.g * X3div) >> 24),
-                (uint8_t) ((X3.b * X3div) >> 24),
-                (uint8_t) ((X3.a * X3div) >> 24)
+                (uint8_t) ((X3.r * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.g * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.b * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.a * X3div + (1 << 23)) >> 24)
             };
             rdata += Rimg->xsize;
         }
@@ -172,20 +172,20 @@ opTriBoxBlur_premul_horz(
             X2.g += b[lastx & r_mask].g - b[(x - 1) & r_mask].g;
             X2.b += b[lastx & r_mask].b - b[(x - 1) & r_mask].b;
             X2.a += b[lastx & r_mask].a - b[(x - 1) & r_mask].a;
-            last_c.r = c[(x + r) & r_mask].r = (uint16_t) ((X2.r * X2div) >> 16);
-            last_c.g = c[(x + r) & r_mask].g = (uint16_t) ((X2.g * X2div) >> 16);
-            last_c.b = c[(x + r) & r_mask].b = (uint16_t) ((X2.b * X2div) >> 16);
-            last_c.a = c[(x + r) & r_mask].a = (uint16_t) ((X2.a * X2div) >> 16);
+            last_c.r = c[(x + r) & r_mask].r = (uint16_t) ((X2.r * X2div + (1 << 15)) >> 16);
+            last_c.g = c[(x + r) & r_mask].g = (uint16_t) ((X2.g * X2div + (1 << 15)) >> 16);
+            last_c.b = c[(x + r) & r_mask].b = (uint16_t) ((X2.b * X2div + (1 << 15)) >> 16);
+            last_c.a = c[(x + r) & r_mask].a = (uint16_t) ((X2.a * X2div + (1 << 15)) >> 16);
             X3.r += last_c.r - c[(x - r - 1) & r_mask].r;
             X3.g += last_c.g - c[(x - r - 1) & r_mask].g;
             X3.b += last_c.b - c[(x - r - 1) & r_mask].b;
             X3.a += last_c.a - c[(x - r - 1) & r_mask].a;
 
             *rdata = (pixel32){
-                (uint8_t) ((X3.r * X3div) >> 24),
-                (uint8_t) ((X3.g * X3div) >> 24),
-                (uint8_t) ((X3.b * X3div) >> 24),
-                (uint8_t) ((X3.a * X3div) >> 24)
+                (uint8_t) ((X3.r * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.g * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.b * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.a * X3div + (1 << 23)) >> 24)
             };
             rdata += Rimg->xsize;
         }
@@ -197,10 +197,10 @@ opTriBoxBlur_premul_horz(
             X3.a += c[lastx & r_mask].a - c[(x - r - 1) & r_mask].a;
 
             *rdata = (pixel32){
-                (uint8_t) ((X3.r * X3div) >> 24),
-                (uint8_t) ((X3.g * X3div) >> 24),
-                (uint8_t) ((X3.b * X3div) >> 24),
-                (uint8_t) ((X3.a * X3div) >> 24)
+                (uint8_t) ((X3.r * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.g * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.b * X3div + (1 << 23)) >> 24),
+                (uint8_t) ((X3.a * X3div + (1 << 23)) >> 24)
             };
             rdata += Rimg->xsize;
         }
