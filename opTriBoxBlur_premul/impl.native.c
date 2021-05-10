@@ -27,8 +27,9 @@ opTriBoxBlur_premul_horz(
     pixel128 X3;
     pixel64 b[r_mask + 1];
     pixel64 c[r_mask + 1];
+    uint32_t lastx = Simg->xsize - 1;
 
-    for (int y = 0; y < Simg->ysize - 1; y += 1) {
+    for (int y = 0; y < Simg->ysize; y += 1) {
         pixel32* sdata = (pixel32*) (Simg->data + Simg->next_line * y);
         pixel32* rdata = (pixel32*) Rimg->data + y;
         
@@ -101,7 +102,7 @@ opTriBoxBlur_premul_horz(
         for (int x = 0; x <= r; x += 1) {
             c[(x - r - 1) & r_mask] = c[0];
         }
-        for (int x = 0; x < Simg->xsize; x += 1) {
+        for (int x = 0; x < Simg->xsize - r3; x += 1) {
             pixel64 last_b, last_c;
             X1.r += sdata[x + r3].r - sdata[x + r - 1].r;
             X1.g += sdata[x + r3].g - sdata[x + r - 1].g;
@@ -123,6 +124,77 @@ opTriBoxBlur_premul_horz(
             X3.g += last_c.g - c[(x - r - 1) & r_mask].g;
             X3.b += last_c.b - c[(x - r - 1) & r_mask].b;
             X3.a += last_c.a - c[(x - r - 1) & r_mask].a;
+
+            *rdata = (pixel32){
+                (uint8_t) ((X3.r * X3div) >> 24),
+                (uint8_t) ((X3.g * X3div) >> 24),
+                (uint8_t) ((X3.b * X3div) >> 24),
+                (uint8_t) ((X3.a * X3div) >> 24)
+            };
+            rdata += Rimg->xsize;
+        }
+
+        for (int x = Simg->xsize - r3; x < Simg->xsize - r2; x += 1) {
+            pixel64 last_b, last_c;
+            X1.r += sdata[lastx].r - sdata[x + r - 1].r;
+            X1.g += sdata[lastx].g - sdata[x + r - 1].g;
+            X1.b += sdata[lastx].b - sdata[x + r - 1].b;
+            X1.a += sdata[lastx].a - sdata[x + r - 1].a;
+            last_b.r = b[(x + r2) & r_mask].r = (uint16_t) ((X1.r * X1div) >> 16);
+            last_b.g = b[(x + r2) & r_mask].g = (uint16_t) ((X1.g * X1div) >> 16);
+            last_b.b = b[(x + r2) & r_mask].b = (uint16_t) ((X1.b * X1div) >> 16);
+            last_b.a = b[(x + r2) & r_mask].a = (uint16_t) ((X1.a * X1div) >> 16);
+            X2.r += last_b.r - b[(x - 1) & r_mask].r;
+            X2.g += last_b.g - b[(x - 1) & r_mask].g;
+            X2.b += last_b.b - b[(x - 1) & r_mask].b;
+            X2.a += last_b.a - b[(x - 1) & r_mask].a;
+            last_c.r = c[(x + r) & r_mask].r = (uint16_t) ((X2.r * X2div) >> 16);
+            last_c.g = c[(x + r) & r_mask].g = (uint16_t) ((X2.g * X2div) >> 16);
+            last_c.b = c[(x + r) & r_mask].b = (uint16_t) ((X2.b * X2div) >> 16);
+            last_c.a = c[(x + r) & r_mask].a = (uint16_t) ((X2.a * X2div) >> 16);
+            X3.r += last_c.r - c[(x - r - 1) & r_mask].r;
+            X3.g += last_c.g - c[(x - r - 1) & r_mask].g;
+            X3.b += last_c.b - c[(x - r - 1) & r_mask].b;
+            X3.a += last_c.a - c[(x - r - 1) & r_mask].a;
+
+            *rdata = (pixel32){
+                (uint8_t) ((X3.r * X3div) >> 24),
+                (uint8_t) ((X3.g * X3div) >> 24),
+                (uint8_t) ((X3.b * X3div) >> 24),
+                (uint8_t) ((X3.a * X3div) >> 24)
+            };
+            rdata += Rimg->xsize;
+        }
+
+        for (int x = Simg->xsize - r2; x < Simg->xsize - r; x += 1) {
+            pixel64 last_c;
+            X2.r += b[lastx & r_mask].r - b[(x - 1) & r_mask].r;
+            X2.g += b[lastx & r_mask].g - b[(x - 1) & r_mask].g;
+            X2.b += b[lastx & r_mask].b - b[(x - 1) & r_mask].b;
+            X2.a += b[lastx & r_mask].a - b[(x - 1) & r_mask].a;
+            last_c.r = c[(x + r) & r_mask].r = (uint16_t) ((X2.r * X2div) >> 16);
+            last_c.g = c[(x + r) & r_mask].g = (uint16_t) ((X2.g * X2div) >> 16);
+            last_c.b = c[(x + r) & r_mask].b = (uint16_t) ((X2.b * X2div) >> 16);
+            last_c.a = c[(x + r) & r_mask].a = (uint16_t) ((X2.a * X2div) >> 16);
+            X3.r += last_c.r - c[(x - r - 1) & r_mask].r;
+            X3.g += last_c.g - c[(x - r - 1) & r_mask].g;
+            X3.b += last_c.b - c[(x - r - 1) & r_mask].b;
+            X3.a += last_c.a - c[(x - r - 1) & r_mask].a;
+
+            *rdata = (pixel32){
+                (uint8_t) ((X3.r * X3div) >> 24),
+                (uint8_t) ((X3.g * X3div) >> 24),
+                (uint8_t) ((X3.b * X3div) >> 24),
+                (uint8_t) ((X3.a * X3div) >> 24)
+            };
+            rdata += Rimg->xsize;
+        }
+
+        for (int x = Simg->xsize - r; x < Simg->xsize; x += 1) {
+            X3.r += c[lastx & r_mask].r - c[(x - r - 1) & r_mask].r;
+            X3.g += c[lastx & r_mask].g - c[(x - r - 1) & r_mask].g;
+            X3.b += c[lastx & r_mask].b - c[(x - r - 1) & r_mask].b;
+            X3.a += c[lastx & r_mask].a - c[(x - r - 1) & r_mask].a;
 
             *rdata = (pixel32){
                 (uint8_t) ((X3.r * X3div) >> 24),
