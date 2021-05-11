@@ -61,7 +61,7 @@ main(int argc, char *argv[])
         end_check: ;
     }
 
-    png32_encode(&REFimage, "./_out.png");
+    png32_encode(&Rimage, "./_out.png");
     image32_free(&Simage);
     image32_free(&Rimage);
     image32_free(&REFimage);

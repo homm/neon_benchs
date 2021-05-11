@@ -1,7 +1,6 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include "../image.h"
 
 #ifndef REF
@@ -23,9 +22,9 @@ opTriBoxBlur_premul_horz(
     uint32_t r2 = r * 2, r3 = r * 3;
     uint32_t r_mask = all_bits_mask(d);
     // Each accumulator (Xn) consists of:
-    // 8 bits — source data
-    // from 1 to 16 bits - for accumulating (max d = 65535)
-    // not less than 8 bits remains for integer division
+    // * 8 bits — source data
+    // * from 1 to 16 bits - for accumulating (max d = 65535)
+    // * not less than 8 bits remains for integer division
     uint32_t X1div = (1 << 24) / (double) d + 0.5;
     uint32_t X2div = X1div;
     uint32_t X3div = X1div;
