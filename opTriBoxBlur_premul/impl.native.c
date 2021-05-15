@@ -224,19 +224,18 @@ opTriBoxBlur_horz_smallr(
     const image32* restrict Simg, float floatR)
 {
     // Max floatR for this implementation is 128 (excluded).
-    uint32_t r = floatR;
+    uint32_t r = floatR + 1;
     uint32_t d = r * 2 + 1;
     uint32_t r2 = r * 2, r3 = r * 3;
     // We need two extra slots for writing even if E1div = 0
-    uint32_t r_mask = all_bits_mask(d + 2);
+    uint32_t r_mask = all_bits_mask(d);
     // Each accumulator (Xn) consists of:
     // * 8 bits — source data
     // * from 1 to 8 bits - for accumulating (max d = 255)
     // * not less than 8 bits remains for integer division
     uint16_t X1div = (1 << 16) / (floatR * 2 + 1) + 0.5;
     uint16_t X2div = X1div, X3div = X1div;
-    // uint16_t E1div = ((1 << 16) - d * X1div) / 2 + 0.5;
-    uint16_t E1div = ((1 << 16) - d * X1div) + 0.5;
+    uint16_t E1div = (1 << 16) > (d - 2) * X1div ? ((1 << 16) - (d - 2) * X1div) / 2.0 + 0.5 : 0;
     uint16_t E2div = E1div, E3div = E1div;
     pixel64 X1;
     pixel64 X2;
@@ -252,74 +251,69 @@ opTriBoxBlur_horz_smallr(
         pixel32* sdata = (pixel32*) Simg->data + Simg->xsize * y;
         pixel32* rdata = (pixel32*) Rimg->data + y;
         
-        X1.r = sdata[0].r * (r + 1) + (1<<15) / X1div;
-        X1.g = sdata[0].g * (r + 1) + (1<<15) / X1div;
-        X1.b = sdata[0].b * (r + 1) + (1<<15) / X1div;
-        X1.a = sdata[0].a * (r + 1) + (1<<15) / X1div;
-        for (size_t x = 1; x <= r; x += 1) {
+        X1.r = sdata[0].r * r;
+        X1.g = sdata[0].g * r;
+        X1.b = sdata[0].b * r;
+        X1.a = sdata[0].a * r;
+        for (size_t x = 1; x < r; x += 1) {
             X1.r += sdata[x].r;
             X1.g += sdata[x].g;
             X1.b += sdata[x].b;
             X1.a += sdata[x].a;
         }
 
-                                            // prev
-        b[0].r = (uint8_t) ((X1.r * X1div + (sdata[0].r) * E1div) >> 16);
-        b[0].g = (uint8_t) ((X1.g * X1div + (sdata[0].g) * E1div) >> 16);
-        b[0].b = (uint8_t) ((X1.b * X1div + (sdata[0].b) * E1div) >> 16);
-        b[0].a = (uint8_t) ((X1.a * X1div + (sdata[0].a) * E1div) >> 16);
-        X2.r = b[0].r * (r + 1) + (1<<15) / X2div;
-        X2.g = b[0].g * (r + 1) + (1<<15) / X2div;
-        X2.b = b[0].b * (r + 1) + (1<<15) / X2div;
-        X2.a = b[0].a * (r + 1) + (1<<15) / X2div;
+        b[0].r = (uint8_t) ((X1.r * X1div + (sdata[0].r + sdata[r].r) * E1div + (1<<15)) >> 16);
+        b[0].g = (uint8_t) ((X1.g * X1div + (sdata[0].g + sdata[r].g) * E1div + (1<<15)) >> 16);
+        b[0].b = (uint8_t) ((X1.b * X1div + (sdata[0].b + sdata[r].b) * E1div + (1<<15)) >> 16);
+        b[0].a = (uint8_t) ((X1.a * X1div + (sdata[0].a + sdata[r].a) * E1div + (1<<15)) >> 16);
+        X2.r = b[0].r * (r-1);
+        X2.g = b[0].g * (r-1);
+        X2.b = b[0].b * (r-1);
+        X2.a = b[0].a * (r-1);
         for (size_t x = 1; x <= r; x += 1) {
-            X1.r += sdata[x+r].r - sdata[0].r;
-            X1.g += sdata[x+r].g - sdata[0].g;
-            X1.b += sdata[x+r].b - sdata[0].b;
-            X1.a += sdata[x+r].a - sdata[0].a;
-                                                // prev
-            b[x].r = (uint8_t) ((X1.r * X1div + (sdata[0].r) * E1div) >> 16);
-            b[x].g = (uint8_t) ((X1.g * X1div + (sdata[0].g) * E1div) >> 16);
-            b[x].b = (uint8_t) ((X1.b * X1div + (sdata[0].b) * E1div) >> 16);
-            b[x].a = (uint8_t) ((X1.a * X1div + (sdata[0].a) * E1div) >> 16);
-            X2.r += b[x].r;
-            X2.g += b[x].g;
-            X2.b += b[x].b;
-            X2.a += b[x].a;
+            X1.r += sdata[x+r-1].r - sdata[0].r;
+            X1.g += sdata[x+r-1].g - sdata[0].g;
+            X1.b += sdata[x+r-1].b - sdata[0].b;
+            X1.a += sdata[x+r-1].a - sdata[0].a;
+            b[x].r = (uint8_t) ((X1.r * X1div + (sdata[0].r + sdata[x+r].r) * E1div + (1<<15)) >> 16);
+            b[x].g = (uint8_t) ((X1.g * X1div + (sdata[0].g + sdata[x+r].g) * E1div + (1<<15)) >> 16);
+            b[x].b = (uint8_t) ((X1.b * X1div + (sdata[0].b + sdata[x+r].b) * E1div + (1<<15)) >> 16);
+            b[x].a = (uint8_t) ((X1.a * X1div + (sdata[0].a + sdata[x+r].a) * E1div + (1<<15)) >> 16);
+            X2.r += b[x-1].r;
+            X2.g += b[x-1].g;
+            X2.b += b[x-1].b;
+            X2.a += b[x-1].a;
         }
 
-                                            // prev
-        c[0].r = (uint8_t) ((X2.r * X2div + (b[0].r) * E2div) >> 16);
-        c[0].g = (uint8_t) ((X2.g * X2div + (b[0].g) * E2div) >> 16);
-        c[0].b = (uint8_t) ((X2.b * X2div + (b[0].b) * E2div) >> 16);
-        c[0].a = (uint8_t) ((X2.a * X2div + (b[0].a) * E2div) >> 16);
-        X3.r = c[0].r * (r + 2) + (1<<15) / X3div;
-        X3.g = c[0].g * (r + 2) + (1<<15) / X3div;
-        X3.b = c[0].b * (r + 2) + (1<<15) / X3div;
-        X3.a = c[0].a * (r + 2) + (1<<15) / X3div;
+        c[0].r = (uint8_t) ((X2.r * X2div + (b[0].r + b[r].r) * E2div + (1<<15)) >> 16);
+        c[0].g = (uint8_t) ((X2.g * X2div + (b[0].g + b[r].g) * E2div + (1<<15)) >> 16);
+        c[0].b = (uint8_t) ((X2.b * X2div + (b[0].b + b[r].b) * E2div + (1<<15)) >> 16);
+        c[0].a = (uint8_t) ((X2.a * X2div + (b[0].a + b[r].a) * E2div + (1<<15)) >> 16);
+        X3.r = c[0].r * r;
+        X3.g = c[0].g * r;
+        X3.b = c[0].b * r;
+        X3.a = c[0].a * r;
         for (size_t x = 1; x < r; x += 1) {
-            X1.r += sdata[x+r2].r - sdata[x-1].r;
-            X1.g += sdata[x+r2].g - sdata[x-1].g;
-            X1.b += sdata[x+r2].b - sdata[x-1].b;
-            X1.a += sdata[x+r2].a - sdata[x-1].a;
-                                                    // next
-            b[x+r].r = (uint8_t) ((X1.r * X1div + (sdata[x+r2+1].r) * E1div) >> 16);
-            b[x+r].g = (uint8_t) ((X1.g * X1div + (sdata[x+r2+1].g) * E1div) >> 16);
-            b[x+r].b = (uint8_t) ((X1.b * X1div + (sdata[x+r2+1].b) * E1div) >> 16);
-            b[x+r].a = (uint8_t) ((X1.a * X1div + (sdata[x+r2+1].a) * E1div) >> 16);
-            X2.r += b[x+r].r - b[0].r;
-            X2.g += b[x+r].g - b[0].g;
-            X2.b += b[x+r].b - b[0].b;
-            X2.a += b[x+r].a - b[0].a;
-                                                // prev
-            c[x].r = (uint8_t) ((X2.r * X2div + (b[0].r) * E2div) >> 16);
-            c[x].g = (uint8_t) ((X2.g * X2div + (b[0].g) * E2div) >> 16);
-            c[x].b = (uint8_t) ((X2.b * X2div + (b[0].b) * E2div) >> 16);
-            c[x].a = (uint8_t) ((X2.a * X2div + (b[0].a) * E2div) >> 16);
-            X3.r += c[x].r;
-            X3.g += c[x].g;
-            X3.b += c[x].b;
-            X3.a += c[x].a;
+            X1.r += sdata[x+r2-1].r - sdata[x].r;
+            X1.g += sdata[x+r2-1].g - sdata[x].g;
+            X1.b += sdata[x+r2-1].b - sdata[x].b;
+            X1.a += sdata[x+r2-1].a - sdata[x].a;
+            b[x+r].r = (uint8_t) ((X1.r * X1div + (sdata[x].r + sdata[x+r2].r) * E1div + (1<<15)) >> 16);
+            b[x+r].g = (uint8_t) ((X1.g * X1div + (sdata[x].g + sdata[x+r2].g) * E1div + (1<<15)) >> 16);
+            b[x+r].b = (uint8_t) ((X1.b * X1div + (sdata[x].b + sdata[x+r2].b) * E1div + (1<<15)) >> 16);
+            b[x+r].a = (uint8_t) ((X1.a * X1div + (sdata[x].a + sdata[x+r2].a) * E1div + (1<<15)) >> 16);
+            X2.r += b[x+r-1].r - b[0].r;
+            X2.g += b[x+r-1].g - b[0].g;
+            X2.b += b[x+r-1].b - b[0].b;
+            X2.a += b[x+r-1].a - b[0].a;
+            c[x].r = (uint8_t) ((X2.r * X2div + (b[0].r + b[x+r].r) * E2div + (1<<15)) >> 16);
+            c[x].g = (uint8_t) ((X2.g * X2div + (b[0].g + b[x+r].g) * E2div + (1<<15)) >> 16);
+            c[x].b = (uint8_t) ((X2.b * X2div + (b[0].b + b[x+r].b) * E2div + (1<<15)) >> 16);
+            c[x].a = (uint8_t) ((X2.a * X2div + (b[0].a + b[x+r].a) * E2div + (1<<15)) >> 16);
+            X3.r += c[x-1].r;
+            X3.g += c[x-1].g;
+            X3.b += c[x-1].b;
+            X3.a += c[x-1].a;
         }
 
         b[-1 & r_mask] = b[0];
@@ -328,112 +322,103 @@ opTriBoxBlur_horz_smallr(
         }
         for (size_t x = 0; x < Simg->xsize - r3; x += 1) {
             pixel32 last_b, last_c;
-            X1.r += sdata[x+r3].r - sdata[x+r-1].r;
-            X1.g += sdata[x+r3].g - sdata[x+r-1].g;
-            X1.b += sdata[x+r3].b - sdata[x+r-1].b;
-            X1.a += sdata[x+r3].a - sdata[x+r-1].a;
-                                                                           // prev
-            last_b.r = b[(x+r2) & r_mask].r = (uint8_t) ((X1.r * X1div + (sdata[x+r-2].r) * E1div) >> 16);
-            last_b.g = b[(x+r2) & r_mask].g = (uint8_t) ((X1.g * X1div + (sdata[x+r-2].g) * E1div) >> 16);
-            last_b.b = b[(x+r2) & r_mask].b = (uint8_t) ((X1.b * X1div + (sdata[x+r-2].b) * E1div) >> 16);
-            last_b.a = b[(x+r2) & r_mask].a = (uint8_t) ((X1.a * X1div + (sdata[x+r-2].a) * E1div) >> 16);
-            X2.r += last_b.r - b[(x-1) & r_mask].r;
-            X2.g += last_b.g - b[(x-1) & r_mask].g;
-            X2.b += last_b.b - b[(x-1) & r_mask].b;
-            X2.a += last_b.a - b[(x-1) & r_mask].a;
-                                                                          // prev
-            last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[(x-2) & r_mask].r) * E2div) >> 16);
-            last_c.g = c[(x+r) & r_mask].g = (uint8_t) ((X2.g * X2div + (b[(x-2) & r_mask].g) * E2div) >> 16);
-            last_c.b = c[(x+r) & r_mask].b = (uint8_t) ((X2.b * X2div + (b[(x-2) & r_mask].b) * E2div) >> 16);
-            last_c.a = c[(x+r) & r_mask].a = (uint8_t) ((X2.a * X2div + (b[(x-2) & r_mask].a) * E2div) >> 16);
-            X3.r += last_c.r - c[(x-r-1) & r_mask].r;
-            X3.g += last_c.g - c[(x-r-1) & r_mask].g;
-            X3.b += last_c.b - c[(x-r-1) & r_mask].b;
-            X3.a += last_c.a - c[(x-r-1) & r_mask].a;
+            X1.r += sdata[x+r3-1].r - sdata[x+r].r;
+            X1.g += sdata[x+r3-1].g - sdata[x+r].g;
+            X1.b += sdata[x+r3-1].b - sdata[x+r].b;
+            X1.a += sdata[x+r3-1].a - sdata[x+r].a;
+            last_b.r = b[(x+r2) & r_mask].r = (uint8_t) ((X1.r * X1div + (sdata[x+r].r + sdata[x+r3].r) * E1div + (1<<15)) >> 16);
+            last_b.g = b[(x+r2) & r_mask].g = (uint8_t) ((X1.g * X1div + (sdata[x+r].g + sdata[x+r3].g) * E1div + (1<<15)) >> 16);
+            last_b.b = b[(x+r2) & r_mask].b = (uint8_t) ((X1.b * X1div + (sdata[x+r].b + sdata[x+r3].b) * E1div + (1<<15)) >> 16);
+            last_b.a = b[(x+r2) & r_mask].a = (uint8_t) ((X1.a * X1div + (sdata[x+r].a + sdata[x+r3].a) * E1div + (1<<15)) >> 16);
+            X2.r += b[(x+r2-1) & r_mask].r - b[x & r_mask].r;
+            X2.g += b[(x+r2-1) & r_mask].g - b[x & r_mask].g;
+            X2.b += b[(x+r2-1) & r_mask].b - b[x & r_mask].b;
+            X2.a += b[(x+r2-1) & r_mask].a - b[x & r_mask].a;
+            last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[x & r_mask].r + last_b.r) * E2div + (1<<15)) >> 16);
+            last_c.g = c[(x+r) & r_mask].g = (uint8_t) ((X2.g * X2div + (b[x & r_mask].g + last_b.g) * E2div + (1<<15)) >> 16);
+            last_c.b = c[(x+r) & r_mask].b = (uint8_t) ((X2.b * X2div + (b[x & r_mask].b + last_b.b) * E2div + (1<<15)) >> 16);
+            last_c.a = c[(x+r) & r_mask].a = (uint8_t) ((X2.a * X2div + (b[x & r_mask].a + last_b.a) * E2div + (1<<15)) >> 16);
+            X3.r += c[(x+r-1) & r_mask].r - c[(x-r) & r_mask].r;
+            X3.g += c[(x+r-1) & r_mask].g - c[(x-r) & r_mask].g;
+            X3.b += c[(x+r-1) & r_mask].b - c[(x-r) & r_mask].b;
+            X3.a += c[(x+r-1) & r_mask].a - c[(x-r) & r_mask].a;
 
             *rdata = (pixel32){
-                                           // prev
-                (uint8_t) ((X3.r * X3div + (c[(x-r-2) & r_mask].r) * E3div) >> 16),
-                (uint8_t) ((X3.g * X3div + (c[(x-r-2) & r_mask].g) * E3div) >> 16),
-                (uint8_t) ((X3.b * X3div + (c[(x-r-2) & r_mask].b) * E3div) >> 16),
-                (uint8_t) ((X3.a * X3div + (c[(x-r-2) & r_mask].a) * E3div) >> 16)
+                (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + last_c.r) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.g * X3div + (c[(x-r) & r_mask].g + last_c.g) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.b * X3div + (c[(x-r) & r_mask].b + last_c.b) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.a * X3div + (c[(x-r) & r_mask].a + last_c.a) * E3div + (1<<15)) >> 16)
             };
             rdata += Rimg->xsize;
         }
 
         for (size_t x = Simg->xsize - r3; x < Simg->xsize - r2; x += 1) {
             pixel32 last_b, last_c;
-            X1.r += sdata[lastx].r - sdata[x+r-1].r;
-            X1.g += sdata[lastx].g - sdata[x+r-1].g;
-            X1.b += sdata[lastx].b - sdata[x+r-1].b;
-            X1.a += sdata[lastx].a - sdata[x+r-1].a;
-                                                                           // prev
-            last_b.r = b[(x+r2) & r_mask].r = (uint8_t) ((X1.r * X1div + (sdata[x+r-2].r) * E1div) >> 16);
-            last_b.g = b[(x+r2) & r_mask].g = (uint8_t) ((X1.g * X1div + (sdata[x+r-2].g) * E1div) >> 16);
-            last_b.b = b[(x+r2) & r_mask].b = (uint8_t) ((X1.b * X1div + (sdata[x+r-2].b) * E1div) >> 16);
-            last_b.a = b[(x+r2) & r_mask].a = (uint8_t) ((X1.a * X1div + (sdata[x+r-2].a) * E1div) >> 16);
-            X2.r += last_b.r - b[(x-1) & r_mask].r;
-            X2.g += last_b.g - b[(x-1) & r_mask].g;
-            X2.b += last_b.b - b[(x-1) & r_mask].b;
-            X2.a += last_b.a - b[(x-1) & r_mask].a;
-                                                                          // prev
-            last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[(x-2) & r_mask].r) * E2div) >> 16);
-            last_c.g = c[(x+r) & r_mask].g = (uint8_t) ((X2.g * X2div + (b[(x-2) & r_mask].g) * E2div) >> 16);
-            last_c.b = c[(x+r) & r_mask].b = (uint8_t) ((X2.b * X2div + (b[(x-2) & r_mask].b) * E2div) >> 16);
-            last_c.a = c[(x+r) & r_mask].a = (uint8_t) ((X2.a * X2div + (b[(x-2) & r_mask].a) * E2div) >> 16);
-            X3.r += last_c.r - c[(x-r-1) & r_mask].r;
-            X3.g += last_c.g - c[(x-r-1) & r_mask].g;
-            X3.b += last_c.b - c[(x-r-1) & r_mask].b;
-            X3.a += last_c.a - c[(x-r-1) & r_mask].a;
+            X1.r += sdata[lastx].r - sdata[x+r].r;
+            X1.g += sdata[lastx].g - sdata[x+r].g;
+            X1.b += sdata[lastx].b - sdata[x+r].b;
+            X1.a += sdata[lastx].a - sdata[x+r].a;
+            last_b.r = b[(x+r2) & r_mask].r = (uint8_t) ((X1.r * X1div + (sdata[x+r].r + sdata[lastx].r) * E1div + (1<<15)) >> 16);
+            last_b.g = b[(x+r2) & r_mask].g = (uint8_t) ((X1.g * X1div + (sdata[x+r].g + sdata[lastx].g) * E1div + (1<<15)) >> 16);
+            last_b.b = b[(x+r2) & r_mask].b = (uint8_t) ((X1.b * X1div + (sdata[x+r].b + sdata[lastx].b) * E1div + (1<<15)) >> 16);
+            last_b.a = b[(x+r2) & r_mask].a = (uint8_t) ((X1.a * X1div + (sdata[x+r].a + sdata[lastx].a) * E1div + (1<<15)) >> 16);
+            X2.r += b[(x+r2-1) & r_mask].r - b[x & r_mask].r;
+            X2.g += b[(x+r2-1) & r_mask].g - b[x & r_mask].g;
+            X2.b += b[(x+r2-1) & r_mask].b - b[x & r_mask].b;
+            X2.a += b[(x+r2-1) & r_mask].a - b[x & r_mask].a;
+            last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[x & r_mask].r + last_b.r) * E2div + (1<<15)) >> 16);
+            last_c.g = c[(x+r) & r_mask].g = (uint8_t) ((X2.g * X2div + (b[x & r_mask].g + last_b.g) * E2div + (1<<15)) >> 16);
+            last_c.b = c[(x+r) & r_mask].b = (uint8_t) ((X2.b * X2div + (b[x & r_mask].b + last_b.b) * E2div + (1<<15)) >> 16);
+            last_c.a = c[(x+r) & r_mask].a = (uint8_t) ((X2.a * X2div + (b[x & r_mask].a + last_b.a) * E2div + (1<<15)) >> 16);
+            X3.r += c[(x+r-1) & r_mask].r - c[(x-r) & r_mask].r;
+            X3.g += c[(x+r-1) & r_mask].g - c[(x-r) & r_mask].g;
+            X3.b += c[(x+r-1) & r_mask].b - c[(x-r) & r_mask].b;
+            X3.a += c[(x+r-1) & r_mask].a - c[(x-r) & r_mask].a;
 
             *rdata = (pixel32){
-                                           // prev
-                (uint8_t) ((X3.r * X3div + (c[(x-r-2) & r_mask].r) * E3div) >> 16),
-                (uint8_t) ((X3.g * X3div + (c[(x-r-2) & r_mask].g) * E3div) >> 16),
-                (uint8_t) ((X3.b * X3div + (c[(x-r-2) & r_mask].b) * E3div) >> 16),
-                (uint8_t) ((X3.a * X3div + (c[(x-r-2) & r_mask].a) * E3div) >> 16)
+                (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + last_c.r) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.g * X3div + (c[(x-r) & r_mask].g + last_c.g) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.b * X3div + (c[(x-r) & r_mask].b + last_c.b) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.a * X3div + (c[(x-r) & r_mask].a + last_c.a) * E3div + (1<<15)) >> 16)
             };
             rdata += Rimg->xsize;
         }
 
         for (size_t x = Simg->xsize - r2; x < Simg->xsize - r; x += 1) {
             pixel32 last_c;
-            X2.r += b[lastx & r_mask].r - b[(x-1) & r_mask].r;
-            X2.g += b[lastx & r_mask].g - b[(x-1) & r_mask].g;
-            X2.b += b[lastx & r_mask].b - b[(x-1) & r_mask].b;
-            X2.a += b[lastx & r_mask].a - b[(x-1) & r_mask].a;
-                                                                          // prev
-            last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[(x-2) & r_mask].r) * E2div) >> 16);
-            last_c.g = c[(x+r) & r_mask].g = (uint8_t) ((X2.g * X2div + (b[(x-2) & r_mask].g) * E2div) >> 16);
-            last_c.b = c[(x+r) & r_mask].b = (uint8_t) ((X2.b * X2div + (b[(x-2) & r_mask].b) * E2div) >> 16);
-            last_c.a = c[(x+r) & r_mask].a = (uint8_t) ((X2.a * X2div + (b[(x-2) & r_mask].a) * E2div) >> 16);
-            X3.r += last_c.r - c[(x-r-1) & r_mask].r;
-            X3.g += last_c.g - c[(x-r-1) & r_mask].g;
-            X3.b += last_c.b - c[(x-r-1) & r_mask].b;
-            X3.a += last_c.a - c[(x-r-1) & r_mask].a;
+            X2.r += b[lastx & r_mask].r - b[x & r_mask].r;
+            X2.g += b[lastx & r_mask].g - b[x & r_mask].g;
+            X2.b += b[lastx & r_mask].b - b[x & r_mask].b;
+            X2.a += b[lastx & r_mask].a - b[x & r_mask].a;
+            last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[x & r_mask].r + b[lastx & r_mask].r) * E2div + (1<<15)) >> 16);
+            last_c.g = c[(x+r) & r_mask].g = (uint8_t) ((X2.g * X2div + (b[x & r_mask].g + b[lastx & r_mask].g) * E2div + (1<<15)) >> 16);
+            last_c.b = c[(x+r) & r_mask].b = (uint8_t) ((X2.b * X2div + (b[x & r_mask].b + b[lastx & r_mask].b) * E2div + (1<<15)) >> 16);
+            last_c.a = c[(x+r) & r_mask].a = (uint8_t) ((X2.a * X2div + (b[x & r_mask].a + b[lastx & r_mask].a) * E2div + (1<<15)) >> 16);
+            X3.r += c[(x+r-1) & r_mask].r - c[(x-r) & r_mask].r;
+            X3.g += c[(x+r-1) & r_mask].g - c[(x-r) & r_mask].g;
+            X3.b += c[(x+r-1) & r_mask].b - c[(x-r) & r_mask].b;
+            X3.a += c[(x+r-1) & r_mask].a - c[(x-r) & r_mask].a;
 
             *rdata = (pixel32){
-                                           // prev
-                (uint8_t) ((X3.r * X3div + (c[(x-r-2) & r_mask].r) * E3div) >> 16),
-                (uint8_t) ((X3.g * X3div + (c[(x-r-2) & r_mask].g) * E3div) >> 16),
-                (uint8_t) ((X3.b * X3div + (c[(x-r-2) & r_mask].b) * E3div) >> 16),
-                (uint8_t) ((X3.a * X3div + (c[(x-r-2) & r_mask].a) * E3div) >> 16)
+                (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + last_c.r) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.g * X3div + (c[(x-r) & r_mask].g + last_c.g) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.b * X3div + (c[(x-r) & r_mask].b + last_c.b) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.a * X3div + (c[(x-r) & r_mask].a + last_c.a) * E3div + (1<<15)) >> 16)
             };
             rdata += Rimg->xsize;
         }
 
         for (size_t x = Simg->xsize - r; x < Simg->xsize; x += 1) {
-            X3.r += c[lastx & r_mask].r - c[(x-r-1) & r_mask].r;
-            X3.g += c[lastx & r_mask].g - c[(x-r-1) & r_mask].g;
-            X3.b += c[lastx & r_mask].b - c[(x-r-1) & r_mask].b;
-            X3.a += c[lastx & r_mask].a - c[(x-r-1) & r_mask].a;
+            X3.r += c[lastx & r_mask].r - c[(x-r) & r_mask].r;
+            X3.g += c[lastx & r_mask].g - c[(x-r) & r_mask].g;
+            X3.b += c[lastx & r_mask].b - c[(x-r) & r_mask].b;
+            X3.a += c[lastx & r_mask].a - c[(x-r) & r_mask].a;
 
             *rdata = (pixel32){
-                                           // prev
-                (uint8_t) ((X3.r * X3div + (c[(x-r-2) & r_mask].r) * E3div) >> 16),
-                (uint8_t) ((X3.g * X3div + (c[(x-r-2) & r_mask].g) * E3div) >> 16),
-                (uint8_t) ((X3.b * X3div + (c[(x-r-2) & r_mask].b) * E3div) >> 16),
-                (uint8_t) ((X3.a * X3div + (c[(x-r-2) & r_mask].a) * E3div) >> 16)
+                (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + c[lastx & r_mask].r) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.g * X3div + (c[(x-r) & r_mask].g + c[lastx & r_mask].g) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.b * X3div + (c[(x-r) & r_mask].b + c[lastx & r_mask].b) * E3div + (1<<15)) >> 16),
+                (uint8_t) ((X3.a * X3div + (c[(x-r) & r_mask].a + c[lastx & r_mask].a) * E3div + (1<<15)) >> 16)
             };
             rdata += Rimg->xsize;
         }
