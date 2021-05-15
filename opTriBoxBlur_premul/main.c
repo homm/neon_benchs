@@ -15,7 +15,7 @@ extern void
 opTriBoxBlur_premul(image32* restrict Rimage,
                     image32* restrict INTimage,
                     const image32* restrict Simage,
-                    uint32_t r);
+                    float r);
 
 int
 main(int argc, char *argv[])
@@ -30,7 +30,7 @@ main(int argc, char *argv[])
     image32_alloc(&REFimage, Simage.xsize, Simage.ysize);
     image32_alloc(&INTimage, Simage.ysize, Simage.xsize);
 
-    opTriBoxBlur_premul_ref(&REFimage, &INTimage, &Simage, 5);
+    opTriBoxBlur_premul_ref(&REFimage, &INTimage, &Simage, 1.1);
 
     printf("%p %dx%d\n", Simage.data, Simage.xsize, Simage.ysize);
     printf("%p %dx%d\n", Rimage.data, Rimage.xsize, Rimage.ysize);
@@ -40,7 +40,7 @@ main(int argc, char *argv[])
         struct timeval tval_before, tval_after, tval_result;
         gettimeofday(&tval_before, NULL);
         for (size_t i = 0; i < 10; i ++) {
-            opTriBoxBlur_premul(&Rimage, &INTimage, &Simage, 5);
+            opTriBoxBlur_premul(&Rimage, &INTimage, &Simage, 1.1);
         }
         gettimeofday(&tval_after, NULL);
         timersub(&tval_after, &tval_before, &tval_result);
@@ -62,7 +62,6 @@ main(int argc, char *argv[])
     }
 
     png32_encode(&Rimage, "./_out.png");
-    png32_encode(&REFimage, "./_out.ref.png");
     image32_free(&Simage);
     image32_free(&Rimage);
     image32_free(&REFimage);
