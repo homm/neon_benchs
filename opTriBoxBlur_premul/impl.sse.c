@@ -40,55 +40,78 @@ opTriBoxBlur_premul_horz(
     __m128i X1[2];
     __m128i X2[2];
     __m128i X3[2];
-    __m128i temp0;
+    __m128i temp0, temp1;
     __m128i b[r_mask + 1];
     __m128i c[r_mask + 1];
+    __m128i zero = _mm_setzero_si128();
     uint32_t lastx = Simg->xsize - 1;
 
     assert(r < (1 << 15));
     assert(Simg->xsize >= r3);
 
-    for (size_t y = 0; y < Simg->ysize - 0; y += 1) {
+    for (size_t y = 0; y < Simg->ysize - 1; y += 2) {
         pixel32* sdata0 = (pixel32*) Simg->data + Simg->xsize * y;
+        pixel32* sdata1 = (pixel32*) Simg->data + Simg->xsize * (y + 1);
         pixel32* rdata = (pixel32*) Rimg->data + y;
         
         // X1.r = sdata0[0].r * (r + 1);
         X1[0] = _mm_mullo_epi32(mm_cvtepu8_epi32(&sdata0[0]), _mm_set1_epi32(r + 1));
+        X1[1] = _mm_mullo_epi32(mm_cvtepu8_epi32(&sdata1[0]), _mm_set1_epi32(r + 1));
         for (size_t x = 1; x <= r; x += 1) {
             // X1.r += sdata0[x].r;
             X1[0] = _mm_add_epi32(X1[0], mm_cvtepu8_epi32(&sdata0[x]));
+            X1[1] = _mm_add_epi32(X1[1], mm_cvtepu8_epi32(&sdata1[x]));
         }
 
         // b[0].r = (uint8_t) ((X1.r * X1div + (1 << 23)) >> 24);
-        b[0] = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[0], X1div), b23), 24);
+        temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[0], X1div), b23), 24);
+        temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[1], X1div), b23), 24);
+        b[0] = _mm_packs_epi32(temp0, temp1);
         // X2.r = b[0].r * (r + 1);
-        X2[0] = _mm_mullo_epi32(b[0], _mm_set1_epi32(r + 1));
+        X2[0] = _mm_mullo_epi32(temp0, _mm_set1_epi32(r + 1));
+        X2[1] = _mm_mullo_epi32(temp1, _mm_set1_epi32(r + 1));
         for (size_t x = 1; x <= r; x += 1) {
             // X1.r += sdata0[x + r].r - sdata0[0].r;
             X1[0] = _mm_add_epi32(mm_cvtepu8_epi32(&sdata0[x + r]),
                 _mm_sub_epi32(X1[0], mm_cvtepu8_epi32(&sdata0[0])));
+            X1[1] = _mm_add_epi32(mm_cvtepu8_epi32(&sdata1[x + r]),
+                _mm_sub_epi32(X1[1], mm_cvtepu8_epi32(&sdata1[0])));
             // b[x].r = (uint8_t) ((X1.r * X1div + (1 << 23)) >> 24);
-            b[x] = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[0], X1div), b23), 24);
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[0], X1div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[1], X1div), b23), 24);
+            b[x] = _mm_packs_epi32(temp0, temp1);
             // X2.r += b[x].r;
-            X2[0] = _mm_add_epi32(X2[0], b[x]);
+            X2[0] = _mm_add_epi32(X2[0], temp0);
+            X2[1] = _mm_add_epi32(X2[1], temp1);
         }
 
         // c[0].r = (uint8_t) ((X2.r * X2div + (1 << 23)) >> 24);
-        c[0] = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[0], X2div), b23), 24);
+        temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[0], X2div), b23), 24);
+        temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[1], X2div), b23), 24);
+        c[0] =  _mm_packs_epi32(temp0, temp1);
         // X3.r = c[0].r * (r + 2);
-        X3[0] = _mm_mullo_epi32(c[0], _mm_set1_epi32(r + 2));
+        X3[0] = _mm_mullo_epi32(temp0, _mm_set1_epi32(r + 2));
+        X3[1] = _mm_mullo_epi32(temp1, _mm_set1_epi32(r + 2));
         for (size_t x = 1; x < r; x += 1) {
             // X1.r += sdata0[x + r2].r - sdata0[x - 1].r;
             X1[0] = _mm_add_epi32(mm_cvtepu8_epi32(&sdata0[x + r2]),
                 _mm_sub_epi32(X1[0], mm_cvtepu8_epi32(&sdata0[x - 1])));
+            X1[1] = _mm_add_epi32(mm_cvtepu8_epi32(&sdata1[x + r2]),
+                _mm_sub_epi32(X1[1], mm_cvtepu8_epi32(&sdata1[x - 1])));
             // b[x + r].r = (uint8_t) ((X1.r * X1div + (1 << 23)) >> 24);
-            b[x + r] = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[0], X1div), b23), 24);
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[0], X1div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[1], X1div), b23), 24);
+            b[x + r] = _mm_packs_epi32(temp0, temp1);
             // X2.r += b[x + r].r - b[0].r;
-            X2[0] = _mm_add_epi32(b[x + r], _mm_sub_epi32(X2[0], b[0]));
+            X2[0] = _mm_add_epi32(temp0, _mm_sub_epi32(X2[0], _mm_unpacklo_epi16(b[0], zero)));
+            X2[1] = _mm_add_epi32(temp1, _mm_sub_epi32(X2[1], _mm_unpackhi_epi16(b[0], zero)));
             // c[x].r = (uint8_t) ((X2.r * X2div + (1 << 23)) >> 24);
-            c[x] = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[0], X2div), b23), 24);
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[0], X2div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[1], X2div), b23), 24);
+            c[x] =  _mm_packs_epi32(temp0, temp1);
             // X3.r += c[x].r;
-            X3[0] = _mm_add_epi32(X3[0], c[x]);
+            X3[0] = _mm_add_epi32(X3[0], temp0);
+            X3[1] = _mm_add_epi32(X3[1], temp1);
         }
 
         b[-1 & r_mask] = b[0];
@@ -100,18 +123,27 @@ opTriBoxBlur_premul_horz(
             // X1.r += sdata0[x + r3].r - sdata0[x + r - 1].r;
             X1[0] = _mm_add_epi32(mm_cvtepu8_epi32(&sdata0[x + r3]),
                 _mm_sub_epi32(X1[0], mm_cvtepu8_epi32(&sdata0[x + r - 1])));
+            X1[1] = _mm_add_epi32(mm_cvtepu8_epi32(&sdata1[x + r3]),
+                _mm_sub_epi32(X1[1], mm_cvtepu8_epi32(&sdata1[x + r - 1])));
             // last_b.r = b[(x + r2) & r_mask].r = (uint8_t) ((X1.r * X1div + (1 << 23)) >> 24);
-            b[(x + r2) & r_mask] = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[0], X1div), b23), 24);
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[0], X1div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[1], X1div), b23), 24);
+            b[(x + r2) & r_mask] = _mm_packus_epi32(temp0, temp1);
             // X2.r += last_b.r - b[(x - 1) & r_mask].r;
-            X2[0] = _mm_add_epi32(b[(x + r2) & r_mask],_mm_sub_epi32(X2[0], b[(x - 1) & r_mask]));
+            X2[0] = _mm_add_epi32(temp0, _mm_sub_epi32(X2[0], _mm_unpacklo_epi16(b[(x - 1) & r_mask], zero)));
+            X2[1] = _mm_add_epi32(temp1, _mm_sub_epi32(X2[1], _mm_unpackhi_epi16(b[(x - 1) & r_mask], zero)));
             // last_c.r = c[(x + r) & r_mask].r = (uint8_t) ((X2.r * X2div + (1 << 23)) >> 24);
-            c[(x + r) & r_mask] = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[0], X2div), b23), 24);
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[0], X2div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[1], X2div), b23), 24);
+            c[(x + r) & r_mask] = _mm_packus_epi32(temp0, temp1);
             // X3.r += last_c.r - c[(x - r - 1) & r_mask].r;
-            X3[0] = _mm_add_epi32(c[(x + r) & r_mask], _mm_sub_epi32(X3[0], c[(x - r - 1) & r_mask]));
+            X3[0] = _mm_add_epi32(temp0, _mm_sub_epi32(X3[0], _mm_unpacklo_epi16(c[(x - r - 1) & r_mask], zero)));
+            X3[1] = _mm_add_epi32(temp1, _mm_sub_epi32(X3[1], _mm_unpackhi_epi16(c[(x - r - 1) & r_mask], zero)));
 
             // *rdata.r = (uint8_t) ((X3.r * X3div + (1 << 23)) >> 24);
-            temp0 = _mm_add_epi32(_mm_mullo_epi32(X3[0], X3div), b23);
-            mm_storeu_si32(rdata, _mm_shuffle_epi8(temp0, storemask));
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X3[0], X3div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X3[1], X3div), b23), 24);
+            _mm_storel_epi64((__m128i*) rdata, _mm_packus_epi16(_mm_packus_epi32(temp0, temp1), zero));
             rdata += Rimg->xsize;
         }
 
@@ -120,44 +152,63 @@ opTriBoxBlur_premul_horz(
             // X1.r += sdata0[lastx].r - sdata0[x + r - 1].r;
             X1[0] = _mm_add_epi32(mm_cvtepu8_epi32(&sdata0[lastx]),
                 _mm_sub_epi32(X1[0], mm_cvtepu8_epi32(&sdata0[x + r - 1])));
+            X1[1] = _mm_add_epi32(mm_cvtepu8_epi32(&sdata1[lastx]),
+                _mm_sub_epi32(X1[1], mm_cvtepu8_epi32(&sdata1[x + r - 1])));
             // last_b.r = b[(x + r2) & r_mask].r = (uint8_t) ((X1.r * X1div + (1 << 23)) >> 24);
-            b[(x + r2) & r_mask] = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[0], X1div), b23), 24);
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[0], X1div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X1[1], X1div), b23), 24);
+            b[(x + r2) & r_mask] = _mm_packus_epi32(temp0, temp1);
             // X2.r += last_b.r - b[(x - 1) & r_mask].r;
-            X2[0] = _mm_add_epi32(b[(x + r2) & r_mask], _mm_sub_epi32(X2[0], b[(x - 1) & r_mask]));
+            X2[0] = _mm_add_epi32(temp0, _mm_sub_epi32(X2[0], _mm_unpacklo_epi16(b[(x - 1) & r_mask], zero)));
+            X2[1] = _mm_add_epi32(temp1, _mm_sub_epi32(X2[1], _mm_unpackhi_epi16(b[(x - 1) & r_mask], zero)));
             // last_c.r = c[(x + r) & r_mask].r = (uint8_t) ((X2.r * X2div + (1 << 23)) >> 24);
-            c[(x + r) & r_mask] = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[0], X2div), b23), 24);
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[0], X2div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[1], X2div), b23), 24);
+            c[(x + r) & r_mask] = _mm_packus_epi32(temp0, temp1);
             // X3.r += last_c.r - c[(x - r - 1) & r_mask].r;
-            X3[0] = _mm_add_epi32(c[(x + r) & r_mask], _mm_sub_epi32(X3[0], c[(x - r - 1) & r_mask]));
+            X3[0] = _mm_add_epi32(temp0, _mm_sub_epi32(X3[0], _mm_unpacklo_epi16(c[(x - r - 1) & r_mask], zero)));
+            X3[1] = _mm_add_epi32(temp1, _mm_sub_epi32(X3[1], _mm_unpackhi_epi16(c[(x - r - 1) & r_mask], zero)));
 
             // *rdata.r = (uint8_t) ((X3.r * X3div + (1 << 23)) >> 24);
-            temp0 = _mm_add_epi32(_mm_mullo_epi32(X3[0], X3div), b23);
-            mm_storeu_si32(rdata, _mm_shuffle_epi8(temp0, storemask));
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X3[0], X3div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X3[1], X3div), b23), 24);
+            _mm_storel_epi64((__m128i*) rdata, _mm_packus_epi16(_mm_packus_epi32(temp0, temp1), zero));
             rdata += Rimg->xsize;
         }
 
         for (size_t x = Simg->xsize - r2; x < Simg->xsize - r; x += 1) {
             // pixel32 last_c;
             // X2.r += b[lastx & r_mask].r - b[(x - 1) & r_mask].r;
-            X2[0] = _mm_add_epi32(b[lastx & r_mask],
-                _mm_sub_epi32(X2[0], b[(x - 1) & r_mask]));
+            X2[0] = _mm_add_epi32(_mm_unpacklo_epi16(b[lastx & r_mask], zero),
+                _mm_sub_epi32(X2[0], _mm_unpacklo_epi16(b[(x - 1) & r_mask], zero)));
+            X2[1] = _mm_add_epi32(_mm_unpackhi_epi16(b[lastx & r_mask], zero),
+                _mm_sub_epi32(X2[1], _mm_unpackhi_epi16(b[(x - 1) & r_mask], zero)));
             // last_c.r = c[(x + r) & r_mask].r = (uint8_t) ((X2.r * X2div + (1 << 23)) >> 24);
-            c[(x + r) & r_mask] = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[0], X2div), b23), 24);
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[0], X2div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X2[1], X2div), b23), 24);
+            c[(x + r) & r_mask] = _mm_packus_epi32(temp0, temp1);
             // X3.r += last_c.r - c[(x - r - 1) & r_mask].r;
-            X3[0] = _mm_add_epi32(c[(x + r) & r_mask], _mm_sub_epi32(X3[0], c[(x - r - 1) & r_mask]));
+            X3[0] = _mm_add_epi32(temp0, _mm_sub_epi32(X3[0], _mm_unpacklo_epi16(c[(x - r - 1) & r_mask], zero)));
+            X3[1] = _mm_add_epi32(temp1, _mm_sub_epi32(X3[1], _mm_unpackhi_epi16(c[(x - r - 1) & r_mask], zero)));
 
             // *rdata.r = (uint8_t) ((X3.r * X3div + (1 << 23)) >> 24);
-            temp0 = _mm_add_epi32(_mm_mullo_epi32(X3[0], X3div), b23);
-            mm_storeu_si32(rdata, _mm_shuffle_epi8(temp0, storemask));
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X3[0], X3div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X3[1], X3div), b23), 24);
+            _mm_storel_epi64((__m128i*) rdata, _mm_packus_epi16(_mm_packus_epi32(temp0, temp1), zero));
             rdata += Rimg->xsize;
         }
 
         for (size_t x = Simg->xsize - r; x < Simg->xsize; x += 1) {
             // X3.r += c[lastx & r_mask].r - c[(x - r - 1) & r_mask].r;
-            X3[0] = _mm_add_epi32(c[lastx & r_mask], _mm_sub_epi32(X3[0], c[(x - r - 1) & r_mask]));
+            X3[0] = _mm_add_epi32(_mm_unpacklo_epi16(c[lastx & r_mask], zero),
+                _mm_sub_epi32(X3[0], _mm_unpacklo_epi16(c[(x - r - 1) & r_mask], zero)));
+            X3[1] = _mm_add_epi32(_mm_unpackhi_epi16(c[lastx & r_mask], zero),
+                _mm_sub_epi32(X3[1], _mm_unpackhi_epi16(c[(x - r - 1) & r_mask], zero)));
 
             // *rdata.r = (uint8_t) ((X3.r * X3div + (1 << 23)) >> 24);
-            temp0 = _mm_add_epi32(_mm_mullo_epi32(X3[0], X3div), b23);
-            mm_storeu_si32(rdata, _mm_shuffle_epi8(temp0, storemask));
+            temp0 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X3[0], X3div), b23), 24);
+            temp1 = _mm_srli_epi32(_mm_add_epi32(_mm_mullo_epi32(X3[1], X3div), b23), 24);
+            _mm_storel_epi64((__m128i*) rdata, _mm_packus_epi16(_mm_packus_epi32(temp0, temp1), zero));
             rdata += Rimg->xsize;
         }
     }
