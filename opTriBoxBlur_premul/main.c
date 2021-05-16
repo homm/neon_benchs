@@ -32,6 +32,8 @@ main(int argc, char *argv[])
 
     opTriBoxBlur_premul_ref(&REFimage, &INTimage, &Simage, 1.5);
 
+    image32_free(&INTimage);
+    image32_alloc(&INTimage, Simage.ysize, Simage.xsize);
     printf("%p %dx%d\n", Simage.data, Simage.xsize, Simage.ysize);
     printf("%p %dx%d\n", Rimage.data, Rimage.xsize, Rimage.ysize);
     printf("%p %dx%d\n", REFimage.data, REFimage.xsize, REFimage.ysize);
