@@ -30,17 +30,17 @@ main(int argc, char *argv[])
     image32_alloc(&REFimage, Simage.xsize, Simage.ysize);
     image32_alloc(&INTimage, Simage.ysize, Simage.xsize);
 
-    opTriBoxBlur_premul_ref(&REFimage, &INTimage, &Simage, 1.1);
+    opTriBoxBlur_premul_ref(&REFimage, &INTimage, &Simage, 1.5);
 
     printf("%p %dx%d\n", Simage.data, Simage.xsize, Simage.ysize);
     printf("%p %dx%d\n", Rimage.data, Rimage.xsize, Rimage.ysize);
     printf("%p %dx%d\n", REFimage.data, REFimage.xsize, REFimage.ysize);
 
-    for (size_t j = 0; j < 4; j ++) {
+    for (size_t j = 0; j < 5; j ++) {
         struct timeval tval_before, tval_after, tval_result;
         gettimeofday(&tval_before, NULL);
         for (size_t i = 0; i < 10; i ++) {
-            opTriBoxBlur_premul(&Rimage, &INTimage, &Simage, 1.1);
+            opTriBoxBlur_premul(&Rimage, &INTimage, &Simage, 1.5);
         }
         gettimeofday(&tval_after, NULL);
         timersub(&tval_after, &tval_before, &tval_result);
