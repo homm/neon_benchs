@@ -418,16 +418,18 @@ opTriBoxBlur_horz_smallr(
     __m128i X1[2];
     __m128i X2[2];
     __m128i X3[2];
-    __m128i temp;
+    __m128i left, right;
     __m128i line[4];
     __m128i b0[r_mask + 1], b1[r_mask + 1];
     __m128i c0[r_mask + 1], c1[r_mask + 1];
+    __m128i zero = _mm_setzero_si128();
+    size_t xsize = Simg->xsize;
     size_t lastx = Simg->ysize - 1;
 
     assert(floatR < 64);
     assert(Simg->ysize >= r3);
 
-    #define LOADSDATA(x) _mm_cvtepu8_epi16(*(__m128i*) &sdata0[(x) * Simg->xsize])
+    #define LOADSDATA(x) _mm_loadu_si128((__m128i*) &sdata0[(x) * xsize]);
 
     #define LINE(X, a, b) _mm_packus_epi32( \
         _mm_srli_epi32(_mm_add_epi32(_mm_madd_epi16(_mm_unpacklo_epi16( \
@@ -437,116 +439,235 @@ opTriBoxBlur_horz_smallr(
                 X, _mm_add_epi16(a, b)), XEdiv), \
             _mm_set1_epi32(1<<14)), 15))
 
-    for (size_t y = 0; y < Simg->xsize; y += 2) {
-        if (y > Simg->xsize - 2) {
-            y = Simg->xsize - 2;
+    for (size_t y = 0; y < Simg->xsize; y += 4) {
+        if (y > Simg->xsize - 4) {
+            y = Simg->xsize - 4;
         }
         pixel32* sdata0 = (pixel32*) Simg->data + y;
         uint32_t* rdata0 = (uint32_t*) Rimg->data + Rimg->xsize * y;
         uint32_t* rdata1 = (uint32_t*) Rimg->data + Rimg->xsize * (y + 1);
+        uint32_t* rdata2 = (uint32_t*) Rimg->data + Rimg->xsize * (y + 2);
+        uint32_t* rdata3 = (uint32_t*) Rimg->data + Rimg->xsize * (y + 3);
         
         // X1.r = sdata[0].r * r;
-        X1[0] = _mm_mullo_epi16(LOADSDATA(0), _mm_set1_epi16(r));
+        left = LOADSDATA(0);
+        X1[0] = _mm_mullo_epi16(_mm_unpacklo_epi8(left, zero), _mm_set1_epi16(r));
+        X1[1] = _mm_mullo_epi16(_mm_unpackhi_epi8(left, zero), _mm_set1_epi16(r));
         for (size_t x = 1; x < r; x += 1) {
             // X1.r += sdata[x].r;
-            X1[0] = _mm_add_epi16(X1[0], LOADSDATA(x));
+            right = LOADSDATA(x);
+            X1[0] = _mm_add_epi16(X1[0], _mm_unpacklo_epi8(right, zero));
+            X1[1] = _mm_add_epi16(X1[1], _mm_unpackhi_epi8(right, zero));
         }
 
         // b[0].r = (uint8_t) ((X1.r * X1div + (sdata[0].r + sdata[r].r) * E1div + (1<<15)) >> 16);
-        b0[0] = LINE(X1[0], LOADSDATA(0), LOADSDATA(r));
+        left = LOADSDATA(0);
+        right = LOADSDATA(r);
+        b0[0] = LINE(X1[0], _mm_unpacklo_epi8(left, zero), _mm_unpacklo_epi8(right, zero));
+        b1[0] = LINE(X1[1], _mm_unpackhi_epi8(left, zero), _mm_unpackhi_epi8(right, zero));
         // X2.r = b[0].r * (r - 1);
         X2[0] = _mm_mullo_epi16(b0[0], _mm_set1_epi16(r - 1));
+        X2[1] = _mm_mullo_epi16(b1[0], _mm_set1_epi16(r - 1));
         for (size_t x = 1; x <= r; x += 1) {
             // X1.r += sdata[x+r-1].r - sdata[0].r;
-            X1[0] = _mm_add_epi16(_mm_sub_epi16(X1[0], LOADSDATA(0)), LOADSDATA(x+r-1));
+            left = LOADSDATA(0);
+            right = LOADSDATA(x+r-1);
+            X1[0] = _mm_add_epi16(_mm_sub_epi16(X1[0], _mm_unpacklo_epi8(left, zero)), _mm_unpacklo_epi8(right, zero));
+            X1[1] = _mm_add_epi16(_mm_sub_epi16(X1[1], _mm_unpackhi_epi8(left, zero)), _mm_unpackhi_epi8(right, zero));
             // b[x].r = (uint8_t) ((X1.r * X1div + (sdata[0].r + sdata[x+r].r) * E1div + (1<<15)) >> 16);
-            b0[x] = LINE(X1[0], LOADSDATA(0), LOADSDATA(x+r));
+            left = LOADSDATA(0);
+            right = LOADSDATA(x+r);
+            b0[x] = LINE(X1[0], _mm_unpacklo_epi8(left, zero), _mm_unpacklo_epi8(right, zero));
+            b1[x] = LINE(X1[1], _mm_unpackhi_epi8(left, zero), _mm_unpackhi_epi8(right, zero));
             // X2.r += b[x-1].r;
             X2[0] = _mm_add_epi16(X2[0], b0[x-1]);
+            X2[1] = _mm_add_epi16(X2[1], b1[x-1]);
         }
 
         // c[0].r = (uint8_t) ((X2.r * X2div + (b[0].r + b[r].r) * E2div + (1<<15)) >> 16);
         c0[0] = LINE(X2[0], b0[0], b0[r]);
+        c1[0] = LINE(X2[1], b1[0], b1[r]);
         // X3.r = c[0].r * r;
         X3[0] = _mm_mullo_epi16(c0[0], _mm_set1_epi16(r));
+        X3[1] = _mm_mullo_epi16(c1[0], _mm_set1_epi16(r));
         for (size_t x = 1; x < r; x += 1) {
             // X1.r += sdata[x+r2-1].r - sdata[x].r;
-            X1[0] = _mm_add_epi16(_mm_sub_epi16(X1[0], LOADSDATA(x)), LOADSDATA(x+r2-1));
+            left = LOADSDATA(x);
+            right = LOADSDATA(x+r2-1);
+            X1[0] = _mm_add_epi16(_mm_sub_epi16(X1[0], _mm_unpacklo_epi8(left, zero)), _mm_unpacklo_epi8(right, zero));
+            X1[1] = _mm_add_epi16(_mm_sub_epi16(X1[1], _mm_unpackhi_epi8(left, zero)), _mm_unpackhi_epi8(right, zero));
             // b[x+r].r = (uint8_t) ((X1.r * X1div + (sdata[x].r + sdata[x+r2].r) * E1div + (1<<15)) >> 16);
-            b0[x+r] = LINE(X1[0], LOADSDATA(x), LOADSDATA(x+r2));
+            left = LOADSDATA(x);
+            right = LOADSDATA(x+r2);
+            b0[x+r] = LINE(X1[0], _mm_unpacklo_epi8(left, zero), _mm_unpacklo_epi8(right, zero));
+            b1[x+r] = LINE(X1[1], _mm_unpackhi_epi8(left, zero), _mm_unpackhi_epi8(right, zero));
             // X2.r += b[x+r-1].r - b[0].r;
             X2[0] = _mm_add_epi16(_mm_sub_epi16(X2[0], b0[0]), b0[x+r-1]);
+            X2[1] = _mm_add_epi16(_mm_sub_epi16(X2[1], b1[0]), b1[x+r-1]);
             // c[x].r = (uint8_t) ((X2.r * X2div + (b[0].r + b[x+r].r) * E2div + (1<<15)) >> 16);
             c0[x] = LINE(X2[0], b0[0], b0[x+r]);
+            c1[x] = LINE(X2[1], b1[0], b1[x+r]);
             // X3.r += c[x-1].r;
             X3[0] = _mm_add_epi16(X3[0], c0[x-1]);
+            X3[1] = _mm_add_epi16(X3[1], c1[x-1]);
         }
 
         b0[-1 & r_mask] = b0[0];
+        b1[-1 & r_mask] = b1[0];
         for (size_t x = 0; x <= r; x += 1) {
             c0[(x-r-1) & r_mask] = c0[0];
+            c1[(x-r-1) & r_mask] = c1[0];
         }
         for (size_t x = 0; x < Simg->ysize - r3; x += 1) {
-            __m128i last_b0, last_c0;
+            __m128i last_b0, last_b1, last_c0, last_c1;
             // X1.r += sdata[x+r3-1].r - sdata[x+r].r;
-            X1[0] = _mm_add_epi16(_mm_sub_epi16(X1[0], LOADSDATA(x+r)), LOADSDATA(x+r3-1));
+            left = LOADSDATA(x+r);
+            right = LOADSDATA(x+r3-1);
+            X1[0] = _mm_add_epi16(_mm_sub_epi16(X1[0], _mm_unpacklo_epi8(left, zero)), _mm_unpacklo_epi8(right, zero));
+            X1[1] = _mm_add_epi16(_mm_sub_epi16(X1[1], _mm_unpackhi_epi8(left, zero)), _mm_unpackhi_epi8(right, zero));
             // last_b.r = b[(x+r2) & r_mask].r = (uint8_t) ((X1.r * X1div + (sdata[x+r].r + sdata[x+r3].r) * E1div + (1<<15)) >> 16);
-            last_b0 = b0[(x+r2) & r_mask] = LINE(X1[0], LOADSDATA(x+r), LOADSDATA(x+r3));
+            // left = LOADSDATA(x+r);
+            right = LOADSDATA(x+r3);
+            last_b0 = b0[(x+r2) & r_mask] = LINE(X1[0], _mm_unpacklo_epi8(left, zero), _mm_unpacklo_epi8(right, zero));
+            last_b1 = b1[(x+r2) & r_mask] = LINE(X1[1], _mm_unpackhi_epi8(left, zero), _mm_unpackhi_epi8(right, zero));
             // X2.r += b[(x+r2-1) & r_mask].r - b[x & r_mask].r;
             X2[0] = _mm_add_epi16(_mm_sub_epi16(X2[0], b0[x & r_mask]), b0[(x+r2-1) & r_mask]);
+            X2[1] = _mm_add_epi16(_mm_sub_epi16(X2[1], b1[x & r_mask]), b1[(x+r2-1) & r_mask]);
             // last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[x & r_mask].r + last_b.r) * E2div + (1<<15)) >> 16);
             last_c0 = c0[(x+r) & r_mask] = LINE(X2[0], b0[x & r_mask], last_b0);
+            last_c1 = c1[(x+r) & r_mask] = LINE(X2[1], b1[x & r_mask], last_b1);
             // X3.r += c[(x+r-1) & r_mask].r - c[(x-r) & r_mask].r;
             X3[0] = _mm_add_epi16(_mm_sub_epi16(X3[0], c0[(x-r) & r_mask]), c0[(x+r-1) & r_mask]);
+            X3[1] = _mm_add_epi16(_mm_sub_epi16(X3[1], c1[(x-r) & r_mask]), c1[(x+r-1) & r_mask]);
 
             // *rdata = (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + last_c.r) * E3div + (1<<15)) >> 16);
-            temp = _mm_packus_epi16(LINE(X3[0], c0[(x-r) & r_mask], last_c0), _mm_setzero_si128());
-            rdata0[x] = _mm_cvtsi128_si32(temp);
-            rdata1[x] = _mm_cvtsi128_si32(_mm_srli_si128(temp, 4));
+            line[x & 0x3] = _mm_packus_epi16(
+                LINE(X3[0], c0[(x-r) & r_mask], last_c0), 
+                LINE(X3[1], c1[(x-r) & r_mask], last_c1));
+
+            if ((x & 0x3) == 0x3) {
+                // Transpose
+                __m128 tmp3, tmp2, tmp1, tmp0;
+                tmp0 = _mm_unpacklo_ps((__m128) line[0], (__m128)line[1]);
+                tmp2 = _mm_unpacklo_ps((__m128) line[2], (__m128)line[3]);
+                tmp1 = _mm_unpackhi_ps((__m128) line[0], (__m128)line[1]);
+                tmp3 = _mm_unpackhi_ps((__m128) line[2], (__m128)line[3]);
+                line[0] = (__m128i) _mm_movelh_ps(tmp0, tmp2);
+                line[1] = (__m128i) _mm_movehl_ps(tmp2, tmp0);
+                line[2] = (__m128i) _mm_movelh_ps(tmp1, tmp3);
+                line[3] = (__m128i) _mm_movehl_ps(tmp3, tmp1);
+
+                _mm_storeu_si128((__m128i*) &rdata0[(x & ~0x3)], line[0]);
+                _mm_storeu_si128((__m128i*) &rdata1[(x & ~0x3)], line[1]);
+                _mm_storeu_si128((__m128i*) &rdata2[(x & ~0x3)], line[2]);
+                _mm_storeu_si128((__m128i*) &rdata3[(x & ~0x3)], line[3]);
+            }
         }
 
         for (size_t x = Simg->ysize - r3; x < Simg->ysize - r2; x += 1) {
-            __m128i last_b0, last_c0;
+            __m128i last_b0, last_b1, last_c0, last_c1;
             // X1.r += sdata[lastx].r - sdata[x+r].r;
-            X1[0] = _mm_add_epi16(_mm_sub_epi16(X1[0], LOADSDATA(x+r)), LOADSDATA(lastx));
+            left = LOADSDATA(x+r);
+            right = LOADSDATA(lastx);
+            X1[0] = _mm_add_epi16(_mm_sub_epi16(X1[0], _mm_unpacklo_epi8(left, zero)), _mm_unpacklo_epi8(right, zero));
+            X1[1] = _mm_add_epi16(_mm_sub_epi16(X1[1], _mm_unpackhi_epi8(left, zero)), _mm_unpackhi_epi8(right, zero));
             // last_b.r = b[(x+r2) & r_mask].r = (uint8_t) ((X1.r * X1div + (sdata[x+r].r + sdata[lastx].r) * E1div + (1<<15)) >> 16);
-            last_b0 = b0[(x+r2) & r_mask] = LINE(X1[0], LOADSDATA(x+r), LOADSDATA(lastx));
+            last_b0 = b0[(x+r2) & r_mask] = LINE(X1[0], _mm_unpacklo_epi8(left, zero), _mm_unpacklo_epi8(right, zero));
+            last_b1 = b1[(x+r2) & r_mask] = LINE(X1[1], _mm_unpackhi_epi8(left, zero), _mm_unpackhi_epi8(right, zero));
             // X2.r += b[(x+r2-1) & r_mask].r - b[x & r_mask].r;
             X2[0] = _mm_add_epi16(_mm_sub_epi16(X2[0], b0[x & r_mask]), b0[(x+r2-1) & r_mask]);
+            X2[1] = _mm_add_epi16(_mm_sub_epi16(X2[1], b1[x & r_mask]), b1[(x+r2-1) & r_mask]);
             // last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[x & r_mask].r + last_b.r) * E2div + (1<<15)) >> 16);
             last_c0 = c0[(x+r) & r_mask] = LINE(X2[0], b0[x & r_mask], last_b0);
+            last_c1 = c1[(x+r) & r_mask] = LINE(X2[1], b1[x & r_mask], last_b1);
             // X3.r += c[(x+r-1) & r_mask].r - c[(x-r) & r_mask].r;
             X3[0] = _mm_add_epi16(_mm_sub_epi16(X3[0], c0[(x-r) & r_mask]), c0[(x+r-1) & r_mask]);
+            X3[1] = _mm_add_epi16(_mm_sub_epi16(X3[1], c1[(x-r) & r_mask]), c1[(x+r-1) & r_mask]);
 
             // *rdata = (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + last_c.r) * E3div + (1<<15)) >> 16);
-            temp = _mm_packus_epi16(LINE(X3[0], c0[(x-r) & r_mask], last_c0), _mm_setzero_si128());
-            rdata0[x] = _mm_cvtsi128_si32(temp);
-            rdata1[x] = _mm_cvtsi128_si32(_mm_srli_si128(temp, 4));
+            line[x & 0x3] = _mm_packus_epi16(
+                LINE(X3[0], c0[(x-r) & r_mask], last_c0), 
+                LINE(X3[1], c1[(x-r) & r_mask], last_c1));
+            if ((x & 0x3) == 0x3) {
+                // Transpose
+                __m128 tmp3, tmp2, tmp1, tmp0;
+                tmp0 = _mm_unpacklo_ps((__m128) line[0], (__m128)line[1]);
+                tmp2 = _mm_unpacklo_ps((__m128) line[2], (__m128)line[3]);
+                tmp1 = _mm_unpackhi_ps((__m128) line[0], (__m128)line[1]);
+                tmp3 = _mm_unpackhi_ps((__m128) line[2], (__m128)line[3]);
+                line[0] = (__m128i) _mm_movelh_ps(tmp0, tmp2);
+                line[1] = (__m128i) _mm_movehl_ps(tmp2, tmp0);
+                line[2] = (__m128i) _mm_movelh_ps(tmp1, tmp3);
+                line[3] = (__m128i) _mm_movehl_ps(tmp3, tmp1);
+
+                _mm_storeu_si128((__m128i*) &rdata0[(x & ~0x3)], line[0]);
+                _mm_storeu_si128((__m128i*) &rdata1[(x & ~0x3)], line[1]);
+                _mm_storeu_si128((__m128i*) &rdata2[(x & ~0x3)], line[2]);
+                _mm_storeu_si128((__m128i*) &rdata3[(x & ~0x3)], line[3]);
+            }
         }
 
         for (size_t x = Simg->ysize - r2; x < Simg->ysize - r; x += 1) {
-            __m128i last_c0;
+            __m128i last_c0, last_c1;
             // X2.r += b[lastx & r_mask].r - b[x & r_mask].r;
             X2[0] = _mm_add_epi16(_mm_sub_epi16(X2[0], b0[x & r_mask]), b0[lastx & r_mask]);
+            X2[1] = _mm_add_epi16(_mm_sub_epi16(X2[1], b1[x & r_mask]), b1[lastx & r_mask]);
             // last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[x & r_mask].r + b[lastx & r_mask].r) * E2div + (1<<15)) >> 16);
             last_c0 = c0[(x+r) & r_mask] = LINE(X2[0], b0[x & r_mask], b0[lastx & r_mask]);
+            last_c1 = c1[(x+r) & r_mask] = LINE(X2[1], b1[x & r_mask], b1[lastx & r_mask]);
             // X3.r += c[(x+r-1) & r_mask].r - c[(x-r) & r_mask].r;
             X3[0] = _mm_add_epi16(_mm_sub_epi16(X3[0], c0[(x-r) & r_mask]), c0[(x+r-1) & r_mask]);
+            X3[1] = _mm_add_epi16(_mm_sub_epi16(X3[1], c1[(x-r) & r_mask]), c1[(x+r-1) & r_mask]);
 
             // *rdata = (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + last_c.r) * E3div + (1<<15)) >> 16);
-            temp = _mm_packus_epi16(LINE(X3[0], c0[(x-r) & r_mask], last_c0), _mm_setzero_si128());
-            rdata0[x] = _mm_cvtsi128_si32(temp);
-            rdata1[x] = _mm_cvtsi128_si32(_mm_srli_si128(temp, 4));
+            line[x & 0x3] = _mm_packus_epi16(
+                LINE(X3[0], c0[(x-r) & r_mask], last_c0),
+                LINE(X3[1], c1[(x-r) & r_mask], last_c1));
+            if ((x & 0x3) == 0x3) {
+                // Transpose
+                __m128 tmp3, tmp2, tmp1, tmp0;
+                tmp0 = _mm_unpacklo_ps((__m128) line[0], (__m128)line[1]);
+                tmp2 = _mm_unpacklo_ps((__m128) line[2], (__m128)line[3]);
+                tmp1 = _mm_unpackhi_ps((__m128) line[0], (__m128)line[1]);
+                tmp3 = _mm_unpackhi_ps((__m128) line[2], (__m128)line[3]);
+                line[0] = (__m128i) _mm_movelh_ps(tmp0, tmp2);
+                line[1] = (__m128i) _mm_movehl_ps(tmp2, tmp0);
+                line[2] = (__m128i) _mm_movelh_ps(tmp1, tmp3);
+                line[3] = (__m128i) _mm_movehl_ps(tmp3, tmp1);
+
+                _mm_storeu_si128((__m128i*) &rdata0[(x & ~0x3)], line[0]);
+                _mm_storeu_si128((__m128i*) &rdata1[(x & ~0x3)], line[1]);
+                _mm_storeu_si128((__m128i*) &rdata2[(x & ~0x3)], line[2]);
+                _mm_storeu_si128((__m128i*) &rdata3[(x & ~0x3)], line[3]);
+            }
         }
 
         for (size_t x = Simg->ysize - r; x < Simg->ysize; x += 1) {
             // X3.r += c[lastx & r_mask].r - c[(x-r) & r_mask].r;
             X3[0] = _mm_add_epi16(_mm_sub_epi16(X3[0], c0[(x-r) & r_mask]), c0[lastx & r_mask]);
+            X3[1] = _mm_add_epi16(_mm_sub_epi16(X3[1], c1[(x-r) & r_mask]), c1[lastx & r_mask]);
 
             // *rdata = (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + c[lastx & r_mask].r) * E3div + (1<<15)) >> 16);
-            temp = _mm_packus_epi16(LINE(X3[0], c0[(x-r) & r_mask], c0[lastx & r_mask]), _mm_setzero_si128());
-            rdata0[x] = _mm_cvtsi128_si32(temp);
-            rdata1[x] = _mm_cvtsi128_si32(_mm_srli_si128(temp, 4));
+            line[x & 0x3] = _mm_packus_epi16(
+                LINE(X3[0], c0[(x-r) & r_mask], c0[lastx & r_mask]),
+                LINE(X3[1], c1[(x-r) & r_mask], c1[lastx & r_mask]));
+            if ((x & 0x3) == 0x3) {
+                // Transpose
+                __m128 tmp3, tmp2, tmp1, tmp0;
+                tmp0 = _mm_unpacklo_ps((__m128) line[0], (__m128)line[1]);
+                tmp2 = _mm_unpacklo_ps((__m128) line[2], (__m128)line[3]);
+                tmp1 = _mm_unpackhi_ps((__m128) line[0], (__m128)line[1]);
+                tmp3 = _mm_unpackhi_ps((__m128) line[2], (__m128)line[3]);
+                line[0] = (__m128i) _mm_movelh_ps(tmp0, tmp2);
+                line[1] = (__m128i) _mm_movehl_ps(tmp2, tmp0);
+                line[2] = (__m128i) _mm_movelh_ps(tmp1, tmp3);
+                line[3] = (__m128i) _mm_movehl_ps(tmp3, tmp1);
+
+                _mm_storeu_si128((__m128i*) &rdata0[(x & ~0x3)], line[0]);
+                _mm_storeu_si128((__m128i*) &rdata1[(x & ~0x3)], line[1]);
+                _mm_storeu_si128((__m128i*) &rdata2[(x & ~0x3)], line[2]);
+                _mm_storeu_si128((__m128i*) &rdata3[(x & ~0x3)], line[3]);
+            }
         }
     }
 }
