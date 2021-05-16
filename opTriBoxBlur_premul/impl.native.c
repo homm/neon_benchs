@@ -266,10 +266,10 @@ opTriBoxBlur_horz_smallr(
         b[0].g = (uint8_t) ((X1.g * X1div + (sdata[0].g + sdata[r].g) * E1div + (1<<15)) >> 16);
         b[0].b = (uint8_t) ((X1.b * X1div + (sdata[0].b + sdata[r].b) * E1div + (1<<15)) >> 16);
         b[0].a = (uint8_t) ((X1.a * X1div + (sdata[0].a + sdata[r].a) * E1div + (1<<15)) >> 16);
-        X2.r = b[0].r * (r-1);
-        X2.g = b[0].g * (r-1);
-        X2.b = b[0].b * (r-1);
-        X2.a = b[0].a * (r-1);
+        X2.r = b[0].r * (r - 1);
+        X2.g = b[0].g * (r - 1);
+        X2.b = b[0].b * (r - 1);
+        X2.a = b[0].a * (r - 1);
         for (size_t x = 1; x <= r; x += 1) {
             X1.r += sdata[x+r-1].r - sdata[0].r;
             X1.g += sdata[x+r-1].g - sdata[0].g;
