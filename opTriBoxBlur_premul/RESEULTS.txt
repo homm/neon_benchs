@@ -3,5 +3,5 @@ Intel Core i5-8279U CPU @ 2.40GHz (turbo boost off)
         | small r   | large r
 novect  | 0.283287  | 0.160789
 sse     | 0.077603  | 0.080096
-sse_2   | 0.103013  | 0.113180
+sse_2   | 0.099558  | 0.113180
 
