@@ -8,19 +8,8 @@
 #include "../image.h"
 
 
-static __m128i inline
-mm_cvtepu8_epi32(void *ptr) {
-    return _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t *) ptr));
-}
-
-void inline
-mm_storeu_si32(void *ptr, __m128i v) {
-    *((int32_t *) ptr) = _mm_cvtsi128_si32(v);
-}
-
-
 static void
-opTriBoxBlur_premul_horz(
+opTriBoxBlur_horz_larger(
     image32* restrict Rimg,
     const image32* restrict Simg, uint32_t r)
 {
@@ -66,7 +55,10 @@ opTriBoxBlur_premul_horz(
     assert(r < (1 << 15));
     assert(Simg->ysize >= r3);
 
-    for (size_t y = 0; y < Simg->xsize - 3; y += 4) {
+    for (size_t y = 0; y < Simg->xsize; y += 4) {
+        if (y > Simg->xsize - 4) {
+            y = Simg->xsize - 4;
+        }
         pixel32* sdata = (pixel32*) Simg->data + y;
         pixel32* rdata = (pixel32*) Rimg->data + Rimg->xsize * y;
         
@@ -392,6 +384,170 @@ opTriBoxBlur_premul_horz(
             }
         }
     }
+
+    #undef LOADSDATA
+    #undef LOAD
+    #undef STORETEMP
+    #undef GET0
+    #undef GET1
+    #undef GET2
+    #undef GET3
+}
+
+
+static void
+opTriBoxBlur_horz_smallr(
+    image32* restrict Rimg,
+    const image32* restrict Simg, float floatR)
+{
+    // Max floatR for this implementation is 64 (excluded).
+    uint32_t r = floatR + 1;
+    uint32_t d = r * 2 + 1;
+    uint32_t r2 = r * 2, r3 = r * 3;
+    // We need two extra slots for writing even if E1div = 0
+    uint32_t r_mask = all_bits_mask(d);
+    // Each accumulator (Xn) consists of:
+    // * 8 bits — source data
+    // * from 1 to 7 bits - for accumulating (max d = 127)
+    // * not less than 8 bits remains for integer division
+    uint16_t _XEdiv = (1 << 15) / (floatR * 2 + 1) + 0.5;
+    __m128i XEdiv = _mm_unpacklo_epi16(
+        _mm_set1_epi16(_XEdiv),
+        _mm_set1_epi16((1 << 15) > (d - 2) * _XEdiv ?
+            ((1 << 15) - (d - 2) * _XEdiv) / 2.0 + 0.5 : 0));
+    __m128i X1;
+    __m128i X2;
+    __m128i X3;
+    __m128i temp;
+    __m128i b[r_mask + 1];
+    __m128i c[r_mask + 1];
+    size_t lastx = Simg->ysize - 1;
+
+    assert(floatR < 64);
+    assert(Simg->ysize >= r3);
+
+    #define LOADSDATA(x) _mm_cvtepu8_epi16(*(__m128i*) &sdata0[(x) * Simg->xsize])
+
+    #define LINE(X, a, b) _mm_packus_epi32( \
+        _mm_srli_epi32(_mm_add_epi32(_mm_madd_epi16(_mm_unpacklo_epi16( \
+                X, _mm_add_epi16(a, b)), XEdiv), \
+            _mm_set1_epi32(1<<14)), 15), \
+        _mm_srli_epi32(_mm_add_epi32(_mm_madd_epi16(_mm_unpackhi_epi16( \
+                X, _mm_add_epi16(a, b)), XEdiv), \
+            _mm_set1_epi32(1<<14)), 15))
+
+    for (size_t y = 0; y < Simg->xsize; y += 2) {
+        if (y > Simg->xsize - 2) {
+            y = Simg->xsize - 2;
+        }
+        pixel32* sdata0 = (pixel32*) Simg->data + y;
+        uint32_t* rdata0 = (uint32_t*) Rimg->data + Rimg->xsize * y;
+        uint32_t* rdata1 = (uint32_t*) Rimg->data + Rimg->xsize * (y + 1);
+        
+        // X1.r = sdata[0].r * r;
+        X1 = _mm_mullo_epi16(LOADSDATA(0), _mm_set1_epi16(r));
+        for (size_t x = 1; x < r; x += 1) {
+            // X1.r += sdata[x].r;
+            X1 = _mm_add_epi16(X1, LOADSDATA(x));
+        }
+
+        // b[0].r = (uint8_t) ((X1.r * X1div + (sdata[0].r + sdata[r].r) * E1div + (1<<15)) >> 16);
+        b[0] = LINE(X1, LOADSDATA(0), LOADSDATA(r));
+        // X2.r = b[0].r * (r - 1);
+        X2 = _mm_mullo_epi16(b[0], _mm_set1_epi16(r - 1));
+        for (size_t x = 1; x <= r; x += 1) {
+            // X1.r += sdata[x+r-1].r - sdata[0].r;
+            X1 = _mm_add_epi16(_mm_sub_epi16(X1, LOADSDATA(0)), LOADSDATA(x+r-1));
+            // b[x].r = (uint8_t) ((X1.r * X1div + (sdata[0].r + sdata[x+r].r) * E1div + (1<<15)) >> 16);
+            b[x] = LINE(X1, LOADSDATA(0), LOADSDATA(x+r));
+            // X2.r += b[x-1].r;
+            X2 = _mm_add_epi16(X2, b[x-1]);
+        }
+
+        // c[0].r = (uint8_t) ((X2.r * X2div + (b[0].r + b[r].r) * E2div + (1<<15)) >> 16);
+        c[0] = LINE(X2, b[0], b[r]);
+        // X3.r = c[0].r * r;
+        X3 = _mm_mullo_epi16(c[0], _mm_set1_epi16(r));
+        for (size_t x = 1; x < r; x += 1) {
+            // X1.r += sdata[x+r2-1].r - sdata[x].r;
+            X1 = _mm_add_epi16(_mm_sub_epi16(X1, LOADSDATA(x)), LOADSDATA(x+r2-1));
+            // b[x+r].r = (uint8_t) ((X1.r * X1div + (sdata[x].r + sdata[x+r2].r) * E1div + (1<<15)) >> 16);
+            b[x+r] = LINE(X1, LOADSDATA(x), LOADSDATA(x+r2));
+            // X2.r += b[x+r-1].r - b[0].r;
+            X2 = _mm_add_epi16(_mm_sub_epi16(X2, b[0]), b[x+r-1]);
+            // c[x].r = (uint8_t) ((X2.r * X2div + (b[0].r + b[x+r].r) * E2div + (1<<15)) >> 16);
+            c[x] = LINE(X2, b[0], b[x+r]);
+            // X3.r += c[x-1].r;
+            X3 = _mm_add_epi16(X3, c[x-1]);
+        }
+
+        b[-1 & r_mask] = b[0];
+        for (size_t x = 0; x <= r; x += 1) {
+            c[(x-r-1) & r_mask] = c[0];
+        }
+        for (size_t x = 0; x < Simg->ysize - r3; x += 1) {
+            __m128i last_b, last_c;
+            // X1.r += sdata[x+r3-1].r - sdata[x+r].r;
+            X1 = _mm_add_epi16(_mm_sub_epi16(X1, LOADSDATA(x+r)), LOADSDATA(x+r3-1));
+            // last_b.r = b[(x+r2) & r_mask].r = (uint8_t) ((X1.r * X1div + (sdata[x+r].r + sdata[x+r3].r) * E1div + (1<<15)) >> 16);
+            last_b = b[(x+r2) & r_mask] = LINE(X1, LOADSDATA(x+r), LOADSDATA(x+r3));
+            // X2.r += b[(x+r2-1) & r_mask].r - b[x & r_mask].r;
+            X2 = _mm_add_epi16(_mm_sub_epi16(X2, b[x & r_mask]), b[(x+r2-1) & r_mask]);
+            // last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[x & r_mask].r + last_b.r) * E2div + (1<<15)) >> 16);
+            last_c = c[(x+r) & r_mask] = LINE(X2, b[x & r_mask], last_b);
+            // X3.r += c[(x+r-1) & r_mask].r - c[(x-r) & r_mask].r;
+            X3 = _mm_add_epi16(_mm_sub_epi16(X3, c[(x-r) & r_mask]), c[(x+r-1) & r_mask]);
+
+            // *rdata = (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + last_c.r) * E3div + (1<<15)) >> 16);
+            temp = _mm_packus_epi16(LINE(X3, c[(x-r) & r_mask], last_c), _mm_setzero_si128());
+            rdata0[x] = _mm_cvtsi128_si32(temp);
+            rdata1[x] = _mm_cvtsi128_si32(_mm_srli_si128(temp, 4));
+        }
+
+        for (size_t x = Simg->ysize - r3; x < Simg->ysize - r2; x += 1) {
+            __m128i last_b, last_c;
+            // X1.r += sdata[lastx].r - sdata[x+r].r;
+            X1 = _mm_add_epi16(_mm_sub_epi16(X1, LOADSDATA(x+r)), LOADSDATA(lastx));
+            // last_b.r = b[(x+r2) & r_mask].r = (uint8_t) ((X1.r * X1div + (sdata[x+r].r + sdata[lastx].r) * E1div + (1<<15)) >> 16);
+            last_b = b[(x+r2) & r_mask] = LINE(X1, LOADSDATA(x+r), LOADSDATA(lastx));
+            // X2.r += b[(x+r2-1) & r_mask].r - b[x & r_mask].r;
+            X2 = _mm_add_epi16(_mm_sub_epi16(X2, b[x & r_mask]), b[(x+r2-1) & r_mask]);
+            // last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[x & r_mask].r + last_b.r) * E2div + (1<<15)) >> 16);
+            last_c = c[(x+r) & r_mask] = LINE(X2, b[x & r_mask], last_b);
+            // X3.r += c[(x+r-1) & r_mask].r - c[(x-r) & r_mask].r;
+            X3 = _mm_add_epi16(_mm_sub_epi16(X3, c[(x-r) & r_mask]), c[(x+r-1) & r_mask]);
+
+            // *rdata = (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + last_c.r) * E3div + (1<<15)) >> 16);
+            temp = _mm_packus_epi16(LINE(X3, c[(x-r) & r_mask], last_c), _mm_setzero_si128());
+            rdata0[x] = _mm_cvtsi128_si32(temp);
+            rdata1[x] = _mm_cvtsi128_si32(_mm_srli_si128(temp, 4));
+        }
+
+        for (size_t x = Simg->ysize - r2; x < Simg->ysize - r; x += 1) {
+            __m128i last_c;
+            // X2.r += b[lastx & r_mask].r - b[x & r_mask].r;
+            X2 = _mm_add_epi16(_mm_sub_epi16(X2, b[x & r_mask]), b[lastx & r_mask]);
+            // last_c.r = c[(x+r) & r_mask].r = (uint8_t) ((X2.r * X2div + (b[x & r_mask].r + b[lastx & r_mask].r) * E2div + (1<<15)) >> 16);
+            last_c = c[(x+r) & r_mask] = LINE(X2, b[x & r_mask], b[lastx & r_mask]);
+            // X3.r += c[(x+r-1) & r_mask].r - c[(x-r) & r_mask].r;
+            X3 = _mm_add_epi16(_mm_sub_epi16(X3, c[(x-r) & r_mask]), c[(x+r-1) & r_mask]);
+
+            // *rdata = (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + last_c.r) * E3div + (1<<15)) >> 16);
+            temp = _mm_packus_epi16(LINE(X3, c[(x-r) & r_mask], last_c), _mm_setzero_si128());
+            rdata0[x] = _mm_cvtsi128_si32(temp);
+            rdata1[x] = _mm_cvtsi128_si32(_mm_srli_si128(temp, 4));
+        }
+
+        for (size_t x = Simg->ysize - r; x < Simg->ysize; x += 1) {
+            // X3.r += c[lastx & r_mask].r - c[(x-r) & r_mask].r;
+            X3 = _mm_add_epi16(_mm_sub_epi16(X3, c[(x-r) & r_mask]), c[lastx & r_mask]);
+
+            // *rdata = (uint8_t) ((X3.r * X3div + (c[(x-r) & r_mask].r + c[lastx & r_mask].r) * E3div + (1<<15)) >> 16);
+            temp = _mm_packus_epi16(LINE(X3, c[(x-r) & r_mask], c[lastx & r_mask]), _mm_setzero_si128());
+            rdata0[x] = _mm_cvtsi128_si32(temp);
+            rdata1[x] = _mm_cvtsi128_si32(_mm_srli_si128(temp, 4));
+        }
+    }
 }
 
 
@@ -399,8 +555,13 @@ extern void
 opTriBoxBlur_premul(
     image32* restrict Rimage,
     image32* restrict INTimage,
-    const image32* restrict Simage, uint32_t r)
+    const image32* restrict Simage, float r)
 {
-    opTriBoxBlur_premul_horz(INTimage, Simage, r);
-    opTriBoxBlur_premul_horz(Rimage, INTimage, r);
+    if (r < 64) {
+        opTriBoxBlur_horz_smallr(INTimage, Simage, r);
+        opTriBoxBlur_horz_smallr(Rimage, INTimage, r);
+    } else {
+        opTriBoxBlur_horz_larger(INTimage, Simage, r + 0.5);
+        opTriBoxBlur_horz_larger(Rimage, INTimage, r + 0.5);
+    }
 }

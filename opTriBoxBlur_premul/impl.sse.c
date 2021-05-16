@@ -49,15 +49,12 @@ opTriBoxBlur_horz_larger(
     assert(Simg->xsize >= r3);
 
     for (size_t y = 0; y < Simg->ysize; y += 2) {
+        if (y > Simg->ysize - 2) {
+            y = Simg->ysize - 2;
+        }
         pixel32* sdata0 = (pixel32*) Simg->data + Simg->xsize * y;
         pixel32* sdata1 = (pixel32*) Simg->data + Simg->xsize * (y + 1);
         pixel32* rdata = (pixel32*) Rimg->data + y;
-
-        if (y == Simg->ysize - 1) {
-            sdata0 = (pixel32*) Simg->data + Simg->xsize * (y - 1);
-            sdata1 = (pixel32*) Simg->data + Simg->xsize * y;
-            rdata = (pixel32*) Rimg->data + y - 1;
-        }
         
         // X1.r = sdata0[0].r * (r + 1);
         X1[0] = _mm_mullo_epi32(mm_cvtepu8_epi32(&sdata0[0]), _mm_set1_epi32(r + 1));
@@ -263,15 +260,12 @@ opTriBoxBlur_horz_smallr(
             _mm_set1_epi32(1<<14)), 15))
 
     for (size_t y = 0; y < Simg->ysize; y += 2) {
+        if (y > Simg->ysize - 2) {
+            y = Simg->ysize - 2;
+        }
         pixel32* sdata0 = (pixel32*) Simg->data + Simg->xsize * y;
         pixel32* sdata1 = (pixel32*) Simg->data + Simg->xsize * (y + 1);
         pixel32* rdata = (pixel32*) Rimg->data + y;
-
-        if (y == Simg->ysize - 1) {
-            sdata0 = (pixel32*) Simg->data + Simg->xsize * (y - 1);
-            sdata1 = (pixel32*) Simg->data + Simg->xsize * y;
-            rdata = (pixel32*) Rimg->data + y - 1;
-        }
         
         // X1.r = sdata[0].r * r;
         X1 = _mm_mullo_epi16(LOADSDATA(0), _mm_set1_epi16(r));
