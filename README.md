@@ -53,7 +53,7 @@ Use different compiler parameters. Default is `-Wall -O2`.
 
 ## Meaning
 
-Each test runs 4 times and each run contains of 20 000 calls of
-`opSourceOver_premul` function, which gives 20MPx picture in total.
+Each test runs 4 times and each run contains of 100 000 calls of
+`opSourceOver_premul` function, which gives 100MPx picture in total.
 The results are given in seconds, so, for example, if result is `0.160 s`,
-the speed of conversion is 20 / 0.16 = 125 MPx/s.
+the speed of conversion is 100 / 0.16 = 625 MPx/s.

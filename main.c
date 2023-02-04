@@ -43,7 +43,7 @@ main(int argc, char *argv[])
         opSourceOver_premul_ref(REFrgba, Srgba, Drgba, len);
         
         gettimeofday(&tval_before, NULL);
-        for (size_t i = 0; i < 20 * 1000; i ++) {
+        for (size_t i = 0; i < 100 * 1000; i ++) {
             opSourceOver_premul(Rrgba, Srgba, Drgba, len);
         }
         gettimeofday(&tval_after, NULL);
