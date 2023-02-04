@@ -1,6 +1,6 @@
     .text
     .file   "impl.preload.c"
-    .section    .rodata.cst16,"aM",@progbits,16
+    .text
     .p2align    4               // -- Begin function opSourceOver_premul
 .LCPI0_0:
     .byte   3                       // 0x3
@@ -20,17 +20,17 @@
     .byte   15                      // 0xf
     .byte   15                      // 0xf
     .text
+    .globl  _opSourceOver_premul
     .globl  opSourceOver_premul
     .p2align    2
-    .type   opSourceOver_premul,@function
+_opSourceOver_premul:                    // @opSourceOver_premul
 opSourceOver_premul:                    // @opSourceOver_premul
 // %bb.0:
     lsl x8, x3, #2
     subs    x12, x8, #28            // =28
     b.eq    .LBB0_4
 // %bb.1:
-    adrp    x9, .LCPI0_0
-    ldr q16, [x9, :lo12:.LCPI0_0]
+    ldr q16, .LCPI0_0
 
     ldr     q1, [x1]                    // Sx4 = vld1q_u8(&Srgba[0])
     ldr     q2, [x2]                    // Dx4 = vld1q_u8(&Drgba[0])
@@ -83,10 +83,3 @@ opSourceOver_premul:                    // @opSourceOver_premul
     b.lo    .LBB0_6
 .LBB0_7:
     ret
-.Lfunc_end0:
-    .size   opSourceOver_premul, .Lfunc_end0-opSourceOver_premul
-                                        // -- End function
-
-    .ident  "clang version 9.0.1-6+rpi1~bpo10+1 "
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
