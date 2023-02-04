@@ -42,6 +42,9 @@ main(int argc, char *argv[])
         struct timeval tval_before, tval_after, tval_result;
         opSourceOver_premul_ref(REFrgba, Srgba, Drgba, len);
         
+        for (size_t i = 0; i < 100 * 1000; i ++) {
+            opSourceOver_premul(Rrgba, Srgba, Drgba, len);
+        }
         gettimeofday(&tval_before, NULL);
         for (size_t i = 0; i < 100 * 1000; i ++) {
             opSourceOver_premul(Rrgba, Srgba, Drgba, len);
